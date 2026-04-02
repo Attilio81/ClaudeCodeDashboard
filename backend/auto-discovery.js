@@ -4,6 +4,12 @@ import os from 'os';
 
 const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
+// Percorsi da escludere dal monitoraggio (es. directory di sistema Claude)
+const EXCLUDED_PATHS = [
+  path.join(os.homedir(), '.claude'),
+  path.join(os.homedir(), '.claude', 'projects'),
+];
+
 /**
  * Converte nome directory Claude in path originale
  * Esempio: "C--BIZ2017-BNRG0022" -> "C:\\BIZ2017\\BNRG0022"
@@ -19,7 +25,7 @@ function claudeDirNameToPath(dirName) {
  * Scopre automaticamente tutti i progetti con sessioni Claude Code attive
  * @returns Array di oggetti {name, path}
  */
-export function discoverProjects() {
+export function discoverProjects(excludedPaths = []) {
   console.log('🔍 Auto-discovery progetti da:', CLAUDE_PROJECTS_DIR);
 
   if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) {
@@ -44,6 +50,18 @@ export function discoverProjects() {
 
       // Converti nome directory in path originale
       const projectPath = claudeDirNameToPath(dir.name);
+
+      // Escludi percorsi di sistema
+      if (EXCLUDED_PATHS.some(excluded => projectPath.toLowerCase() === excluded.toLowerCase())) {
+        console.log(`  ⏭️  Escluso (percorso sistema): ${projectPath}`);
+        continue;
+      }
+
+      // Escludi percorsi nella lista esclusioni utente
+      if (excludedPaths.some(ep => ep.toLowerCase() === projectPath.toLowerCase())) {
+        console.log(`  ⏭️  Escluso (lista utente): ${projectPath}`);
+        continue;
+      }
 
       // Usa ultimo segmento del path come nome
       const projectName = path.basename(projectPath);

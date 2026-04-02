@@ -2,16 +2,208 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+:root {
+  --green:        #00e676;
+  --green-glow:   rgba(0, 230, 118, 0.22);
+  --green-dim:    rgba(0, 230, 118, 0.07);
+  --green-border: rgba(0, 230, 118, 0.35);
+
+  --amber:        #ffab00;
+  --amber-glow:   rgba(255, 171, 0, 0.22);
+  --amber-dim:    rgba(255, 171, 0, 0.07);
+  --amber-border: rgba(255, 171, 0, 0.35);
+
+  --red:          #ff3d71;
+  --red-glow:     rgba(255, 61, 113, 0.22);
+  --red-dim:      rgba(255, 61, 113, 0.07);
+  --red-border:   rgba(255, 61, 113, 0.35);
+
+  --slate:        #3d4562;
+  --slate-dim:    rgba(61, 69, 98, 0.12);
+  --slate-border: rgba(61, 69, 98, 0.3);
+
+  --blue:         #448aff;
+  --blue-glow:    rgba(68, 138, 255, 0.2);
+  --blue-dim:     rgba(68, 138, 255, 0.1);
+  --blue-border:  rgba(68, 138, 255, 0.3);
+
+  --bg-void:      #070910;
+  --bg-header:    #0a0c14;
+  --bg-card:      #111420;
+  --bg-inset:     #0c0e16;
+
+  --border-dim:    rgba(255, 255, 255, 0.04);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-mid:    rgba(255, 255, 255, 0.12);
+
+  --text-bright:    #f2f4fc;
+  --text-primary:   #c4c9e0;
+  --text-secondary: #7e87a8;
+  --text-muted:     #50587a;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Syne', system-ui, sans-serif;
+  background: var(--bg-void);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
+
+/* ─── Animations ─────────────────────────────────────────── */
+
+@keyframes glow-green {
+  0%, 100% { box-shadow: 0 0 0 0 var(--green-glow); }
+  50%       { box-shadow: 0 0 0 6px rgba(0,230,118,0); }
+}
+
+@keyframes glow-amber {
+  0%, 100% { box-shadow: 0 0 0 0 var(--amber-glow); }
+  50%       { box-shadow: 0 0 0 6px rgba(255,171,0,0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Status Dots ─────────────────────────────────────────── */
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-active {
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green-glow);
+  animation: glow-green 2.2s ease-in-out infinite;
+}
+.dot-check {
+  background: var(--amber);
+  box-shadow: 0 0 6px var(--amber-glow);
+  animation: glow-amber 2.2s ease-in-out infinite;
+}
+.dot-idle  { background: var(--slate); }
+.dot-error { background: var(--red); box-shadow: 0 0 5px var(--red-glow); }
+
+/* ─── Project Card ────────────────────────────────────────── */
+
+.project-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 16px 18px;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+  animation: fade-up 0.35s ease both;
+}
+.project-card:hover {
+  border-color: var(--border-mid);
+  box-shadow: 0 10px 36px rgba(0,0,0,0.5);
+  transform: translateY(-2px);
+}
+.project-card.status-active { border-left: 3px solid var(--green-border); }
+.project-card.status-check  { border-left: 3px solid var(--amber-border); }
+.project-card.status-idle   { border-left: 3px solid var(--slate-border); }
+.project-card.status-error  { border-left: 3px solid var(--red-border); }
+
+/* ─── Terminal Output Block ───────────────────────────────── */
+
+.terminal-block {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-dim);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  padding: 9px 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-y: auto;
+  max-height: 145px;
+}
+.terminal-block::-webkit-scrollbar       { width: 3px; }
+.terminal-block::-webkit-scrollbar-track { background: transparent; }
+.terminal-block::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+/* ─── Utilities ───────────────────────────────────────────── */
+
+.card-sep {
+  height: 1px;
+  background: var(--border-dim);
+  margin: 11px 0;
+}
+
+.spin {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+/* ─── CMD Button ──────────────────────────────────────────── */
+
+.btn-cmd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  background: var(--blue-dim);
+  border: 1px solid var(--blue-border);
+  color: var(--blue);
+  border-radius: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+.btn-cmd:hover:not(:disabled) {
+  background: rgba(68,138,255,0.18);
+  border-color: rgba(68,138,255,0.55);
+  box-shadow: 0 0 12px var(--blue-glow);
+}
+.btn-cmd:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ─── Mark Checked Button ─────────────────────────────────── */
+
+.btn-check {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 16px;
+  background: var(--amber-dim);
+  border: 1px solid var(--amber-border);
+  color: var(--amber);
+  border-radius: 7px;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.btn-check:hover:not(:disabled) {
+  background: rgba(255,171,0,0.14);
+  box-shadow: 0 0 16px var(--amber-glow);
+}
+.btn-check:disabled { opacity: 0.45; cursor: not-allowed; }

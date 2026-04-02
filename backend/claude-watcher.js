@@ -10,6 +10,7 @@ export class ClaudeSessionWatcher {
     this.projects = projects;
     this.onUpdate = onUpdate;
     this.watchers = [];
+    this.watcherMap = new Map(); // projectName -> chokidar watcher
     this.projectDirs = new Map();
     this.manuallyChecked = new Map(); // Progetti segnati manualmente come controllati (projectName -> timestamp)
     this.lastToolResultTime = new Map(); // Timestamp ultimo tool result per progetto
@@ -352,6 +353,38 @@ export class ClaudeSessionWatcher {
       });
 
     this.watchers.push(watcher);
+    this.watcherMap.set(project.name, watcher);
+  }
+
+  // Aggiungi un nuovo progetto al monitoraggio in tempo reale
+  addNewProject(project) {
+    if (this.projects.some(p => p.name === project.name)) return; // già presente
+    this.projects.push(project);
+    this.addProjectWatcher(project);
+  }
+
+  // Rimuovi un progetto dal monitoraggio dinamicamente
+  removeProject(projectName) {
+    const watcher = this.watcherMap.get(projectName);
+    if (watcher) {
+      watcher.close();
+      this.watcherMap.delete(projectName);
+      const idx = this.watchers.indexOf(watcher);
+      if (idx !== -1) this.watchers.splice(idx, 1);
+    }
+
+    const project = this.projects.find(p => p.name === projectName);
+    if (project) {
+      const claudeDirName = this.projectPathToClaudeDirName(project.path);
+      this.discoveredProjects.delete(claudeDirName);
+    }
+
+    this.projects = this.projects.filter(p => p.name !== projectName);
+    this.projectDirs.delete(projectName);
+    this.manuallyChecked.delete(projectName);
+    this.lastToolResultTime.delete(projectName);
+
+    console.log(`🚫 ${projectName} rimosso dal monitoraggio`);
   }
 
   // Avvia monitoraggio dinamico della directory .claude/projects
@@ -366,10 +399,10 @@ export class ClaudeSessionWatcher {
     this.projectsWatcher = chokidar.watch(CLAUDE_DIR, {
       persistent: true,
       ignoreInitial: true,
-      depth: 1,
+      depth: 2,
       awaitWriteFinish: {
-        stabilityThreshold: 2000,
-        pollInterval: 500
+        stabilityThreshold: 1000,
+        pollInterval: 200
       }
     });
 

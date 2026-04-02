@@ -9,9 +9,9 @@
 [![React](https://img.shields.io/badge/react-18.2.0-blue)](https://reactjs.org/)
 [![Status](https://img.shields.io/badge/status-active-success)](https://github.com)
 
-*Monitora in tempo reale N sessioni Claude Code parallele su progetti diversi senza alcuna configurazione manuale*
+*Monitora in tempo reale N sessioni Claude Code parallele su progetti diversi — zero configurazione manuale*
 
-[Quick Start](#-quick-start) • [Features](#-features) • [Documentation](#-documentation) • [Troubleshooting](#-troubleshooting)
+[Quick Start](#-quick-start) • [Features](#-features) • [Admin Panel](#-admin-panel) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
 </div>
 
@@ -19,681 +19,335 @@
 
 ## ✨ Features
 
-### 🎯 Core Features
-- **🔍 Dynamic Auto-Discovery** - Rileva automaticamente nuovi progetti senza riavvio
-- **⚡ Real-Time Monitoring** - Aggiornamenti istantanei via WebSocket
-- **🤖 Zero Configuration** - Nessun file di configurazione da creare manualmente
-- **📊 Smart Status Detection** - Riconosce attività, completamento e idle
-- **🔄 Auto-Reconnect** - Riconnessione automatica in caso di disconnessione
-- **🎨 Modern UI** - Interfaccia responsiva con Tailwind CSS
+### 🎯 Core
+| Feature | Descrizione |
+|---------|-------------|
+| **🗂️ Scan Roots** | Configura cartelle radice (`C:\BIZ2017`, `C:\Progetti Pilota`, ecc.) — tutte le sottocartelle con sessioni Claude vengono monitorate automaticamente |
+| **⚡ Real-Time Monitoring** | Aggiornamenti istantanei via WebSocket |
+| **🔄 Dynamic Discovery** | Nuovi progetti rilevati senza riavvio (watcher `depth: 2`) |
+| **🧠 Smart Status** | Distingue Active / Check / Idle / Error in base al tipo di entry e ai timeout |
+| **🔌 Auto-Reconnect** | Riconnessione WebSocket automatica ogni 3 secondi |
 
-### � Advanced Features
-- **Dynamic Project Detection** - Nuovi progetti aggiunti automaticamente durante l'esecuzione
-- **Intelligent Timeouts** - 5 minuti per tool execution, 60 minuti per idle
-- **Session History** - Storico completo degli ultimi 20 eventi per progetto
-- **Git Branch Tracking** - Visualizza il branch attivo per ogni sessione
-- **Tool Result Tracking** - Mantiene lo stato attivo durante l'esecuzione di tool lunghi
-- **Manual Check Marking** - Segna manualmente progetti come controllati
+### 🎨 UI — Terminal Noir
+- Dark theme completo con palette CSS variabili
+- Tipografia: **Syne** (UI) + **JetBrains Mono** (dati/codice)
+- Neon glow animato sugli indicatori di stato
+- Layout a 3 colonne: Attivi / Da Controllare / Inattivi
+
+### 🛠️ Gestione Progetti
+| Azione | Come |
+|--------|------|
+| **⊗ Escludi percorso** | Bottone su ogni card → rimozione immediata + salvataggio in `excluded-paths.json` |
+| **📟 Apri CMD** | Apre cmd.exe nella directory del progetto |
+| **⬡ Trova finestra** | PowerShell scansiona processi e titoli finestre per localizzare il terminale con la sessione attiva |
+| **✓ Segna controllato** | Marca un progetto "Check" come rivisto → torna a Idle |
+
+### ⚙️ Area Admin
+- Pannello laterale accessibile con **⚙ ADMIN** nell'header
+- Aggiungi / rimuovi cartelle radice di scansione
+- **Riscansiona Ora** — trova nuovi progetti senza riavviare il server
+- Visualizza e ripristina percorsi esclusi
+
+---
 
 ## 🔬 Come Funziona
 
-La dashboard monitora **automaticamente** le sessioni Claude Code attraverso un sistema intelligente di file watching:
+### Discovery: Scan Roots (v4.0.0+)
 
-### 📂 Struttura File
+La dashboard non scansiona più `~/.claude/projects/` alla cieca. Invece:
+
+1. Legge `backend/scan-paths.json` → lista cartelle radice configurate
+2. Per ogni radice, elenca le **sottocartelle dirette**
+3. Per ogni sottocartella controlla se esiste `~/.claude/projects/[path-codificato]/` con file `.jsonl`
+4. Include solo quelle con sessioni reali
+
 ```
-~/.claude/projects/
-├── C--BIZ2017-BNRG0022/
-│   ├── session-uuid-1.jsonl  ← Sessione attiva
-│   └── session-uuid-2.jsonl
-├── C--BIZ2017-BNEG0013/
-│   └── session-uuid.jsonl    ← Rilevata automaticamente!
-└── C--Progetti-Pilota-Dashboard/
-    └── session-uuid.jsonl
+C:\BIZ2017\           ← cartella radice
+├── BNEGS076\         ← ha ~/.claude/projects/C--BIZ2017-BNEGS076/*.jsonl → MONITORATA
+├── BIZ2017\          ← ha sessioni → MONITORATA  
+└── Archivio\         ← nessuna sessione → IGNORATA
 ```
 
-### ⚙️ Flusso di Lavoro
+### Codifica del percorso
 
-1. **🔍 Discovery Phase** (all'avvio)
-   - Scansiona `~/.claude/projects/` per progetti esistenti
-   - Identifica file `.jsonl` più recenti per ogni progetto
-   - Inizializza watcher per ogni sessione attiva
+Claude Code codifica i path come nome directory:
+```
+C:\BIZ2017\BNEGS076  →  C--BIZ2017-BNEGS076
+```
 
-2. **📡 Real-Time Monitoring** (durante l'esecuzione)
-   - Monitora modifiche ai file `.jsonl` con `chokidar`
-   - Rileva nuove directory progetto create da Claude Code
-   - Aggiunge automaticamente nuovi progetti senza riavvio
+La dashboard fa la conversione in entrambe le direzioni.
 
-3. **🧠 Intelligent Status Detection**
-   - **Active** (🟢): Tool in esecuzione o < 5 min dall'ultimo tool result
-   - **Check** (🟡): Completato da < 60 minuti, da controllare
-   - **Idle** (⚪): Inattivo da > 60 minuti o controllato manualmente
-   - **Error** (🔴): Errore nella lettura della sessione
+### Stato intelligente
 
-4. **📤 WebSocket Broadcast**
-   - Invia aggiornamenti in tempo reale a tutti i client connessi
-   - Include storico eventi, branch git, e metadata sessione
+| Stato | Colore | Trigger |
+|-------|--------|---------|
+| **Active** | 🟢 neon | Tool in esecuzione **o** < 5 min dall'ultimo tool result |
+| **Check** | 🟠 amber | Completato da < 60 min — da rivedere |
+| **Idle** | ⚪ grigio | > 60 min di inattività **o** segnato manualmente |
+| **Error** | 🔴 | Impossibile leggere la sessione |
+
+### Rilevamento finestra terminale
+
+Endpoint `GET /api/projects/:name/terminal-windows`:
+
+1. Cerca processi con il **nome del progetto nel titolo** della finestra
+2. Trova processi `node.exe` con `@anthropic-ai/claude-code` nel command line (esclude MCP server, plugin, dashboard)
+3. **Risale al terminale padre** (node → cmd/pwsh → Windows Terminal, fino a 2 livelli)
+4. Restituisce PID + nome processo + titolo finestra
+
+Usa `-EncodedCommand` base64 per evitare problemi di escaping PowerShell.
+
+---
 
 ## 🛠️ Stack Tecnologico
 
-<table>
-<tr>
-<td width="50%">
+| Layer | Tecnologie |
+|-------|-----------|
+| **Backend** | Node.js ≥ 18, Express, ws, chokidar |
+| **Frontend** | React 18.2, Vite 5, Tailwind CSS 3 |
+| **Fonts** | Syne (Google Fonts), JetBrains Mono |
+| **Platform** | Windows (PowerShell per terminal detection) |
 
-### Backend
-- **Runtime**: Node.js >= 18
-- **Framework**: Express.js
-- **WebSocket**: ws
-- **File Watching**: chokidar
-- **Session Parsing**: Custom JSONL parser
-- **CORS**: Enabled for local development
+---
 
-</td>
-<td width="50%">
-
-### Frontend
-- **Framework**: React 18.2
-- **Build Tool**: Vite 5.x
-- **Styling**: Tailwind CSS 3.x
-- **State**: React Hooks
-- **WebSocket**: Native WebSocket API
-- **Auto-reconnect**: Custom implementation
-
-</td>
-</tr>
-</table>
-
-## Struttura Progetto
+## 📁 Struttura Progetto
 
 ```
-dashboard/
+DashboardClaudeCode/
 ├── backend/
-│   ├── server.js          # Express + WebSocket server
-│   ├── claude-watcher.js  # Monitora sessioni Claude Code REALI
-│   ├── watcher.js         # Fallback: file .claude/status.json
-│   ├── simulator.js       # Simulatore per testing
-│   ├── config.json        # Configurazione progetti
+│   ├── server.js              # Express + WebSocket + API REST
+│   ├── claude-watcher.js      # Monitora sessioni reali Claude Code
+│   ├── path-scanner.js        # Discovery da cartelle radice ← NEW v4
+│   ├── auto-discovery.js      # Discovery fallback da ~/.claude/projects/
+│   ├── watcher.js             # Fallback: legacy status.json
+│   ├── scan-paths.json        # Cartelle radice da scansionare ← NEW v4
+│   ├── excluded-paths.json    # Percorsi esclusi dal monitoring ← NEW v4
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx                    # Componente principale
+│   │   ├── App.jsx                    # Layout + 3 colonne + Admin toggle
 │   │   ├── components/
-│   │   │   └── ProjectCard.jsx        # Card singolo progetto
+│   │   │   ├── ProjectCard.jsx        # Card progetto con azioni
+│   │   │   └── AdminPanel.jsx         # Pannello Admin ← NEW v4
 │   │   ├── hooks/
-│   │   │   └── useWebSocket.js        # Hook WebSocket
-│   │   ├── index.css                  # Tailwind CSS
-│   │   └── main.jsx                   # Entry point
+│   │   │   └── useWebSocket.js        # Hook WebSocket + reconnect
+│   │   └── index.css                  # CSS variables + animazioni
 │   ├── index.html
-│   ├── vite.config.js
-│   ├── tailwind.config.js
 │   └── package.json
-├── update-status.js       # Script helper per aggiornamenti manuali
-├── package.json           # Root package.json
-├── README.md
-└── QUICKSTART.md
+├── start.bat                  # Avvio rapido Windows ← NEW v4
+├── package.json
+└── README.md
 ```
+
+---
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Prerequisiti
 
-```bash
-# Required
+```
 Node.js >= 18
 npm >= 9
-
-# Optional but recommended
-Claude Code installed with active sessions
+Claude Code con sessioni attive
 ```
 
-### Installation
+### Installazione
 
 ```bash
-# 1. Clone repository
+# 1. Clona il repository
 git clone https://github.com/Attilio81/ClaudeCodeDashboard.git
 cd ClaudeCodeDashboard
 
-# 2. Install all dependencies (root, backend, frontend)
+# 2. Installa dipendenze
 npm install
 cd backend && npm install
-cd ../frontend && npm install
-cd ..
+cd ../frontend && npm install && cd ..
 
-# 3. Start the dashboard
+# 3. Configura le cartelle radice (vedi sezione Admin)
+# oppure modifica direttamente backend/scan-paths.json
+
+# 4. Avvia
 npm run dev
+# oppure su Windows: doppio click su start.bat
 ```
 
-🎉 La dashboard si aprirà automaticamente su `http://localhost:5173`
+Apri `http://localhost:5173`
 
-## ⚙️ Configuration
+---
 
-### Option 1: Auto-Discovery (Recommended) ✨
+## ⚙️ Configurazione
 
-**Nessuna configurazione richiesta!** Il sistema rileva automaticamente tutti i progetti con sessioni Claude Code attive.
+### Cartelle radice (`backend/scan-paths.json`)
 
-```bash
-# Auto-discovery è abilitato di default
-npm run dev
-```
+Modifica il file per specificare dove cercare i tuoi progetti:
 
-### Option 2: Manual Configuration (Optional)
-
-Per aggiungere progetti specifici o disabilitare auto-discovery:
-
-**1. Crea `backend/config.json`:**
-```json
-{
-  "projects": [
-    {
-      "name": "MyProject",
-      "path": "C:\\Projects\\MyProject"
-    },
-    {
-      "name": "AnotherProject",
-      "path": "/home/user/projects/another"
-    }
-  ]
-}
-```
-
-**2. Disabilita auto-discovery (se necessario):**
-```bash
-AUTO_DISCOVERY=false npm run dev:backend
-```
-
-> **💡 Tip**: Con auto-discovery attivo, i progetti in `config.json` vengono comunque aggiunti e uniti con quelli rilevati automaticamente.
-
-### Environment Variables
-
-```bash
-# Auto-discovery (default: true)
-AUTO_DISCOVERY=true
-
-# Real sessions monitoring (default: true)
-USE_REAL_SESSIONS=true
-
-# Backend port (default: 3001)
-PORT=3001
-```
-
-## 📖 Usage
-
-### Available Scripts
-
-```bash
-# Development
-npm run dev              # Start backend + frontend (recommended)
-npm run dev:backend      # Start only backend
-npm run dev:frontend     # Start only frontend
-
-# Testing
-npm run simulate         # Start session simulator for testing
-
-# Production
-npm run build            # Build frontend for production
-```
-
-### Monitoring Modes
-
-#### 🎯 Real Sessions (Default)
-
-Monitora sessioni Claude Code reali:
-```bash
-npm run dev
-```
-
-**Features:**
-- ✅ Zero configuration
-- ✅ Dynamic project detection
-- ✅ Real tool execution tracking
-- ✅ Session history (last 20 events)
-- ✅ Git branch tracking
-
-#### 📝 Legacy Mode (status.json)
-
-Per compatibilità con sistemi legacy:
-```bash
-USE_REAL_SESSIONS=false npm run dev:backend
-```
-
-### Testing Without Active Sessions
-
-Usa il simulatore per generare dati di test:
-
-```bash
-# Terminal 1: Start simulator
-npm run simulate
-
-# Terminal 2: Start dashboard
-npm run dev
-```
-
-Il simulatore genera attività casuali ogni 5 secondi.
-
-## 📊 Dashboard Overview
-
-### Status Indicators
-
-| Icon | Status | Description | Trigger |
-|------|--------|-------------|----------|
-| 🟢 | **Active** | Claude is actively working | Tool execution or < 5 min from tool result |
-| 🟡 | **Check** | Work completed, needs review | Completed < 60 minutes ago |
-| ⚪ | **Idle** | No recent activity | Inactive > 60 minutes or manually checked |
-| 🔴 | **Error** | Session read error | Cannot parse session file |
-
-### Project Card Layout
-
-```
-┌──────────────────────────────────────────┐
-│ 🟢 BNEG0013 [sharded-wibbling-crab]   │  ← Status + Project + Session Slug
-├──────────────────────────────────────────┤
-│ C:\BIZ2017\BNEG0013                    │  ← Project Path
-│ 🌿 main                              │  ← Git Branch (if available)
-│                                          │
-│ Last Update: 22/01/2026, 14:00:15      │  ← Session Timestamp
-│                                          │
-│ Activity:                               │
-│ Bash: npm test --coverage              │  ← Current Activity
-│                                          │
-│ History: 12 events                     │  ← Event Count
-│ Received: 22/01/2026, 14:00:16         │  ← Dashboard Update Time
-└──────────────────────────────────────────┘
-```
-
-### Activity Messages
-
-| Message | Meaning |
-|---------|----------|
-| `Bash: <command>` | Shell command executed |
-| `Read: <file>` | File read operation |
-| `Write: <file>` | New file created |
-| `Edit: <description>` | File edited |
-| `Tool execution completed` | Tool finished executing |
-| `Responding` | Claude is writing a response |
-| `✅ Completato - Da controllare` | Work finished, needs review |
-| `💤 Inattivo da più di 60 minuti` | Session idle |
-| `✓ Controllato manualmente` | Manually marked as checked |
-
-## 📝 Claude Code Session Format
-
-Claude Code salva le sessioni in formato **JSONL** (JSON Lines) in `~/.claude/projects/`:
-
-### Session File Structure
-
-```jsonl
-{"type":"user","message":{"content":"create a file"},"timestamp":"2026-01-22T11:00:00Z","sessionId":"abc-123"}
-{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"test.js"}}]},"timestamp":"2026-01-22T11:00:01Z"}
-{"type":"user","toolUseResult":{"stdout":"File created"},"timestamp":"2026-01-22T11:00:02Z"}
-{"type":"assistant","message":{"content":[{"type":"text","text":"File created successfully"}]},"timestamp":"2026-01-22T11:00:03Z"}
-```
-
-### Entry Types
-
-| Type | Field | Description |
-|------|-------|-------------|
-| `user` | `message.content` | User's request |
-| `assistant` | `message.content[].tool_use` | Claude calling a tool |
-| `user` | `toolUseResult` | Result of tool execution |
-| `assistant` | `message.content[].text` | Claude's text response |
-
-### Status Detection Logic
-
-```javascript
-// Active: Tool use or recent tool result
-if (hasToolUse && diffMinutes < 5) return 'active';
-if (toolResult && diffMinutes < 5) return 'active';
-
-// Check: Completed recently
-if (diffMinutes < 60) return 'check';
-
-// Idle: No activity for a while
-return 'idle';
-```
-
-## 🔌 API Reference
-
-### HTTP REST Endpoints
-
-#### Health Check
-```http
-GET http://localhost:3001/api/health
-```
-**Response:**
-```json
-{
-  "status": "ok",
-  "projects": 20
-}
-```
-
-#### List Projects
-```http
-GET http://localhost:3001/api/projects
-```
-**Response:**
 ```json
 [
-  {"name": "BNEG0013", "path": "C:\\BIZ2017\\BNEG0013"},
-  {"name": "MyProject", "path": "C:\\Projects\\MyProject"}
+  "C:\\BIZ2017",
+  "C:\\Progetti Pilota",
+  "C:\\ProgettiEgm",
+  "C:\\Users\\nome.utente\\Documents\\GitHub"
 ]
 ```
 
-#### Mark Project as Checked
-```http
-POST http://localhost:3001/api/projects/:projectName/mark-checked
+Oppure usa l'**Area Admin** nell'UI per aggiungere/rimuovere percorsi senza toccare file.
+
+### Percorsi esclusi (`backend/excluded-paths.json`)
+
+Popolato automaticamente quando clicchi **⊗** su una card. Per ripristinare un percorso usa il pannello Admin → sezione "Percorsi esclusi".
+
+```json
+[
+  "C:\\BIZ2017\\ProgettoArchiviato"
+]
 ```
-**Response:**
+
+### Fallback: `backend/config.json`
+
+Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
+
 ```json
 {
-  "success": true,
-  "projectName": "BNEG0013",
-  "message": "Progetto segnato come controllato"
-}
-```
-
-### WebSocket API
-
-**Connection:** `ws://localhost:3001`
-
-#### Messages Received
-
-**1. Configuration**
-```json
-{
-  "type": "config",
   "projects": [
-    {"name": "Project1", "path": "C:\\path"}
+    { "name": "MioProgetto", "path": "C:\\Progetti\\MioProgetto" }
   ]
 }
 ```
 
-**2. Status Update**
+---
+
+## 🔌 API Reference
+
+### Progetti
+
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Stato server |
+| `GET` | `/api/projects` | Lista progetti monitorati |
+| `POST` | `/api/projects/:name/mark-checked` | Segna come controllato |
+| `POST` | `/api/projects/:name/exclude` | Escludi dal monitoring |
+| `POST` | `/api/projects/:name/open-terminal` | Apri CMD nella directory |
+| `GET` | `/api/projects/:name/terminal-windows` | Trova finestre terminale |
+
+### Admin
+
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| `GET` | `/api/admin/scan-paths` | Lista cartelle radice |
+| `POST` | `/api/admin/scan-paths` | Aggiungi cartella radice (`{ "path": "C:\\..." }`) |
+| `DELETE` | `/api/admin/scan-paths/:index` | Rimuovi cartella radice |
+| `POST` | `/api/admin/rescan` | Riscansiona senza riavvio |
+| `GET` | `/api/admin/excluded-paths` | Lista percorsi esclusi |
+| `DELETE` | `/api/admin/excluded-paths/:index` | Ripristina percorso escluso |
+
+### WebSocket (`ws://localhost:3001`)
+
+**Config** (inviato alla connessione e ad ogni aggiornamento lista):
+```json
+{
+  "type": "config",
+  "projects": [{ "name": "BNEGS076", "path": "C:\\BIZ2017\\BNEGS076" }]
+}
+```
+
+**Status update** (inviato ad ogni cambio sessione):
 ```json
 {
   "type": "status",
   "data": {
     "status": "active",
-    "lastUpdate": "2026-01-22T12:30:00Z",
-    "lastOutput": "Bash: npm install",
-    "fullText": "Full response text...",
-    "projectName": "Project1",
-    "projectPath": "C:\\path",
-    "timestamp": "2026-01-22T12:30:01Z",
-    "sessionId": "abc-123",
+    "projectName": "BNEGS076",
+    "lastUpdate": "2026-04-02T10:00:00Z",
+    "lastOutput": "Bash: npm test",
     "slug": "sharded-wibbling-crab",
     "gitBranch": "main",
-    "toolName": "Bash",
-    "outputHistory": [
-      {"timestamp": "...", "output": "...", "toolName": "..."}
-    ]
+    "sessionId": "abc-123",
+    "outputHistory": [{ "timestamp": "...", "output": "...", "toolName": "Bash" }]
   }
 }
 ```
 
+---
 
 ## 🔧 Troubleshooting
 
-### Common Issues
-
 <details>
-<summary><b>⚠️ "Nessuna sessione attiva trovata"</b></summary>
+<summary><b>Progetto non rilevato al primo avvio</b></summary>
 
-**Causa:** Il progetto non ha mai avuto una sessione Claude Code attiva.
+Verifica che esista una directory sessione in `~/.claude/projects/`:
 
-**Soluzione:**
-1. Apri Claude Code nella directory del progetto
-2. Esegui almeno un comando/richiesta
-3. Il file `.jsonl` verrà creato automaticamente in `~/.claude/projects/`
-4. La dashboard rileverà il nuovo progetto entro 2 secondi
+```powershell
+ls "$env:USERPROFILE\.claude\projects\" | Where-Object Name -like "*NOMEPROGETTO*"
+```
+
+Se esiste ma non appare, controlla che il percorso del progetto sia in `scan-paths.json` e fai **Riscansiona** dal pannello Admin.
 
 </details>
 
 <details>
-<summary><b>🔄 Progetti non aggiornati in real-time</b></summary>
+<summary><b>Nuovo progetto non rilevato in tempo reale</b></summary>
 
-**Verifica:**
-1. Claude Code è effettivamente attivo sul progetto?
-2. Il path in `config.json` corrisponde esattamente? (case-sensitive)
-3. Controlla i log del backend per errori di permessi
-4. Verifica che `chokidar` possa accedere alla directory
-
-**Debug:**
-```bash
-# Controlla se il file sessione esiste
-ls ~/.claude/projects/C--BIZ2017-BNEG0013/
-
-# Verifica permessi
-ls -la ~/.claude/projects/
-```
+Il watcher dinamico usa `depth: 2` per rilevare nuovi file `.jsonl`. Se il server era avviato con una versione precedente (`depth: 1`), riavvialo. Dopo il riavvio i nuovi progetti vengono rilevati automaticamente.
 
 </details>
 
 <details>
-<summary><b>🔌 WebSocket keeps disconnecting</b></summary>
+<summary><b>"Trova finestra" non trova nulla</b></summary>
 
-**Possibili cause:**
-- Firewall blocca la porta 3001
-- Backend non in esecuzione
-- Conflitto di porta
+La funzione cerca:
+1. Finestre con il nome del progetto nel **titolo** — funziona se il terminale mostra la directory corrente nel titolo (comportamento default di cmd, PowerShell, Windows Terminal)
+2. Processi `node.exe` con `@anthropic-ai/claude-code` nel command line
 
-**Soluzione:**
-```bash
-# Verifica che il backend sia in esecuzione
-ps aux | grep node
-
-# Controlla se la porta è occupata
-netstat -an | grep 3001
-
-# Controlla i log del backend
-tail -f backend.log
-```
-
-> Il frontend riconnette automaticamente ogni 3 secondi.
+Se non trova nulla è possibile che:
+- Il titolo della finestra non rispecchi il nome del progetto
+- La sessione Claude Code non sia attiva in questo momento
 
 </details>
 
 <details>
-<summary><b>🆕 Nuovo progetto non rilevato</b></summary>
+<summary><b>WebSocket si disconnette continuamente</b></summary>
 
-**Con Auto-Discovery:**
-- Il rilevamento avviene entro 2 secondi dalla creazione del file `.jsonl`
-- Controlla che il file esista: `ls ~/.claude/projects/*/`
-- Verifica i log del backend per errori
-
-**Senza Auto-Discovery:**
-- Aggiungi il progetto a `backend/config.json`
-- Riavvia il backend: `npm run dev:backend`
+Il frontend riconnette ogni 3 secondi automaticamente. Se il problema persiste:
+- Verifica che il backend sia in esecuzione su porta 3001
+- Controlla che non ci siano firewall locali che bloccano `localhost:3001`
 
 </details>
 
-<details>
-<summary><b>🐛 Status sempre "Check" invece di "Active"</b></summary>
-
-**Causa:** Timeout di 5 minuti non rispettato dopo tool result.
-
-**Verifica versione:** Assicurati di avere l'ultima versione con la correzione del timeout.
-
-**Workaround temporaneo:** Riavvia il backend.
-
-</details>
-
-### Port Configuration
-
-| Service | Default Port | Config File |
-|---------|--------------|-------------|
-| Backend HTTP | 3001 | `backend/server.js` |
-| WebSocket | 3001 | `backend/server.js` |
-| Frontend Dev | 5173 | `frontend/vite.config.js` |
-| WebSocket Client | 3001 | `frontend/src/hooks/useWebSocket.js` |
-
-## 👨‍💻 Development
-
-### Project Structure
-
-```
-src/
-├── backend/
-│   ├── server.js              # Main server + WebSocket
-│   ├── claude-watcher.js      # Real sessions watcher (MAIN)
-│   ├── auto-discovery.js      # Auto-discovery logic
-│   ├── watcher.js             # Legacy status.json watcher
-│   └── simulator.js           # Testing simulator
-├── frontend/
-│   └── src/
-│       ├── App.jsx            # Main component
-│       ├── components/
-│       │   └── ProjectCard.jsx # Status card
-│       └── hooks/
-│           └── useWebSocket.js # WS connection hook
-└── docs/
-    ├── README.md
-    └── QUICKSTART.md
-```
-
-### Customization Examples
-
-#### Modify Activity Timeouts
-
-`backend/claude-watcher.js:228-261`
-
-```javascript
-// Active threshold (default: 5 minutes)
-if (diffMinutes < 5) return 'active';
-
-// Check threshold (default: 60 minutes)
-if (diffMinutes < 60) return 'check';
-
-// Idle threshold
-return 'idle';
-```
-
-#### Add Custom Activity Parsing
-
-`backend/claude-watcher.js:125-185`
-
-```javascript
-extractActivityInfo(sessionData) {
-  // Add custom tool detection
-  if (toolUse.name === 'CustomTool') {
-    info.lastOutput = `Custom: ${toolUse.input.description}`;
-    info.toolName = 'CustomTool';
-  }
-  return info;
-}
-```
-
-#### Change WebSocket Port
-
-**Backend:** `backend/server.js:16`
-```javascript
-const PORT = 3001; // Change this
-```
-
-**Frontend:** `frontend/src/hooks/useWebSocket.js:3`
-```javascript
-const WS_URL = 'ws://localhost:3001'; // Match backend
-```
-
-### Adding New Features
-
-1. **Fork** the repository
-2. Create a **feature branch**: `git checkout -b feature/amazing-feature`
-3. **Commit** your changes: `git commit -m 'Add amazing feature'`
-4. **Push** to branch: `git push origin feature/amazing-feature`
-5. Open a **Pull Request**
-
-### Testing
-
-```bash
-# Unit tests (when available)
-npm test
-
-# Manual testing with simulator
-npm run simulate
-
-# Test auto-discovery
-# 1. Start dashboard
-npm run dev
-# 2. Open a new Claude Code session in a project
-# 3. Verify it appears within 2 seconds
-```
-
-## 🔒 Security & Privacy
-
-- ✅ **Local-only**: Nessun dato inviato a server esterni
-- ✅ **Localhost**: WebSocket accessibile solo su `127.0.0.1`
-- ✅ **Read-only**: La dashboard legge solo file di sessione, non li modifica
-- ⚠️ **Privacy**: I file `.jsonl` contengono conversazioni complete - attenzione in ambienti condivisi
-
-## 📜 License
-
-```
-MIT License
-
-Copyright (c) 2026 Dashboard Claude Code Contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction...
-```
-
-Vedi [LICENSE](LICENSE) per il testo completo.
-
-## 👥 Contributing
-
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) first.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 🚀 Roadmap
-
-- [ ] **Multi-user support** - Track sessions from multiple developers
-- [ ] **Performance metrics** - Track tool execution times
-- [ ] **Session replay** - Replay session history step-by-step
-- [ ] **Export/Import** - Export session data to JSON/CSV
-- [ ] **Custom alerts** - Configure custom notification rules
-- [ ] **Dark mode** - Theme customization
-- [ ] **Docker support** - Containerized deployment
-
-## 📦 Release Notes
-
-See [CHANGELOG.md](CHANGELOG.md) for detailed release notes.
+---
 
 ## 📊 Changelog
 
-### v3.0.0 (2026-01-22) - Dynamic Discovery
-- 🆕 **NEW**: Dynamic auto-discovery - nuovi progetti rilevati senza riavvio
-- ⚡ **IMPROVED**: Intelligent timeout logic (5 min tool, 60 min idle)
-- 🐛 **FIXED**: Path conversion bug (C:\ → C-- instead of C---)
-- 🐛 **FIXED**: Premature "Check" status after tool execution
-- 🔔 **REMOVED**: Browser notifications (can be re-enabled)
-- 📊 **ENHANCED**: Session history tracking (last 20 events)
-- 🌿 **ADDED**: Git branch display
-- ✓️ **ADDED**: Manual check marking via API
+### v4.0.0 (2026-04-02) — Scan Roots + Terminal Noir UI
+- 🆕 **Scan Roots**: discovery da cartelle radice configurabili invece di `~/.claude/projects/`
+- 🆕 **Area Admin**: pannello UI per gestire percorsi di scansione e percorsi esclusi
+- 🆕 **Escludi percorso**: bottone ⊗ su ogni card + persistenza in `excluded-paths.json`
+- 🆕 **Trova finestra terminale**: PowerShell risale al terminale padre del processo Claude
+- 🆕 **start.bat**: avvio rapido su Windows
+- 🎨 **Terminal Noir UI**: redesign completo — dark theme, Syne + JetBrains Mono, neon glow
+- 🐛 **Fix**: `depth: 2` nel watcher dinamico — nuovi progetti rilevati in tempo reale
+- 🐛 **Fix**: deduplicazione per nome progetto (non solo per path)
+- 🐛 **Fix**: testo visibile su sfondo scuro (variabili CSS corrette)
 
-### v2.0.0 (2026-01-15) - Real Sessions
-- ✨ Monitoraggio automatico sessioni Claude Code reali
-- 📊 Parsing file `.jsonl` in tempo reale
-- 🔍 Auto-detection directory sessioni (statico)
-- 🎯 Visualizzazione tool e comandi reali
-- ⚡ Threshold attività configurabile
+### v3.0.0 (2026-01-22) — Dynamic Discovery
+- 🆕 Auto-discovery dinamico — nuovi progetti aggiunti senza riavvio
+- ⚡ Timeout intelligenti (5 min tool, 60 min idle)
+- 📊 Storico sessione (ultimi 20 eventi)
+- 🌿 Visualizzazione branch Git
+- ✓ Marcatura manuale "controllato"
 
-### v1.0.0 (2026-01-01) - Initial Release
-- 🚀 Release iniziale
-- 📝 Monitoraggio file `.claude/status.json`
-- 🎨 UI con Tailwind CSS
-- 🔌 WebSocket real-time
+### v2.0.0 (2026-01-15) — Real Sessions
+- Parsing file `.jsonl` in tempo reale
+- Auto-detection sessioni Claude Code
+
+### v1.0.0 (2026-01-01) — Initial Release
+- Monitoraggio via `status.json`
+- UI Tailwind CSS + WebSocket
 
 ---
 
 <div align="center">
 
-### 🌟 Built with passion for the Claude Code community
-
-**[Report Bug](https://github.com/Attilio81/ClaudeCodeDashboard/issues)** • **[Request Feature](https://github.com/Attilio81/ClaudeCodeDashboard/issues)** • **[Documentation](https://github.com/Attilio81/ClaudeCodeDashboard/wiki)**
+**[Report Bug](https://github.com/Attilio81/ClaudeCodeDashboard/issues)** • **[Request Feature](https://github.com/Attilio81/ClaudeCodeDashboard/issues)**
 
 Made with ❤️ by developers, for developers
 

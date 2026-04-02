@@ -1,256 +1,358 @@
 import React, { useState } from 'react';
 
-const STATUS_CONFIG = {
-  active: {
-    color: 'bg-green-500',
-    label: 'Attivo',
-    textColor: 'text-green-600',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200'
-  },
-  check: {
-    color: 'bg-orange-500',
-    label: 'Controllare',
-    textColor: 'text-orange-600',
-    bgColor: 'bg-orange-50',
-    borderColor: 'border-orange-200'
-  },
-  idle: {
-    color: 'bg-gray-400',
-    label: 'Inattivo',
-    textColor: 'text-gray-600',
-    bgColor: 'bg-gray-50',
-    borderColor: 'border-gray-200'
-  },
-  error: {
-    color: 'bg-red-500',
-    label: 'Errore',
-    textColor: 'text-red-600',
-    bgColor: 'bg-red-50',
-    borderColor: 'border-red-200'
-  }
+const STATUS_STYLE = {
+  active: { color: 'var(--green)', bg: 'var(--green-dim)', border: 'var(--green-border)', label: 'ATTIVO' },
+  check:  { color: 'var(--amber)', bg: 'var(--amber-dim)', border: 'var(--amber-border)', label: 'CHECK'  },
+  idle:   { color: 'var(--slate)', bg: 'var(--slate-dim)', border: 'var(--slate-border)', label: 'IDLE'   },
+  error:  { color: 'var(--red)',   bg: 'var(--red-dim)',   border: 'var(--red-border)',   label: 'ERRORE' },
 };
 
-function formatTimestamp(timestamp) {
-  if (!timestamp) return 'N/A';
-  const date = new Date(timestamp);
-  return date.toLocaleString('it-IT', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+function fmt(ts) {
+  if (!ts) return '—';
+  return new Date(ts).toLocaleString('it-IT', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
   });
 }
 
+function InfoRow({ label, value, valueColor }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+      <span style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '0.6rem',
+        color: 'var(--text-secondary)', minWidth: 44, flexShrink: 0, paddingTop: 1
+      }}>
+        {label}
+      </span>
+      <span style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem',
+        color: valueColor || 'var(--text-primary)',
+        lineHeight: 1.45, wordBreak: 'break-all'
+      }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export default function ProjectCard({ project, status }) {
-  const statusInfo = status?.status ? STATUS_CONFIG[status.status] : STATUS_CONFIG.idle;
-  const [showFullOutput, setShowFullOutput] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
+  const [isExcluding, setIsExcluding] = useState(false);
+  const [terminalWindows, setTerminalWindows] = useState(null);
+  const [loadingTerminal, setLoadingTerminal] = useState(false);
+
+  const statusKey = status?.status || 'idle';
+  const s = STATUS_STYLE[statusKey] || STATUS_STYLE.idle;
 
   const handleMarkAsChecked = async () => {
     if (isMarking) return;
-
     setIsMarking(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/mark-checked`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Errore nel segnare come controllato');
-      }
-
-      console.log(`✓ ${project.name} segnato come controllato`);
-    } catch (error) {
-      console.error('Errore:', error);
+      const res = await fetch(
+        `http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/mark-checked`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (!res.ok) throw new Error('Errore');
+    } catch {
       alert('Errore nel segnare il progetto come controllato');
     } finally {
       setIsMarking(false);
     }
   };
 
+  const handleExclude = async () => {
+    if (isExcluding) return;
+    if (!confirm(`Escludere "${project.name}" dal monitoraggio?\nPercorso: ${project.path}\n\nPotrà essere rimosso da excluded-paths.json per ripristinarlo.`)) return;
+    setIsExcluding(true);
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/exclude`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (!res.ok) throw new Error('Errore');
+      // La card sparirà automaticamente via WebSocket broadcast
+    } catch {
+      alert('Errore durante l\'esclusione del percorso');
+      setIsExcluding(false);
+    }
+  };
+
+  const handleFindTerminal = async () => {
+    setLoadingTerminal(true);
+    setTerminalWindows(null);
+    try {
+      const res = await fetch(`http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/terminal-windows`);
+      const data = await res.json();
+      setTerminalWindows(data.windows || []);
+    } catch {
+      setTerminalWindows([]);
+    }
+    setLoadingTerminal(false);
+  };
+
+  const handleOpenTerminal = async () => {
+    if (isOpeningTerminal) return;
+    setIsOpeningTerminal(true);
+    try {
+      const res = await fetch(
+        `http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/open-terminal`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Errore');
+      }
+    } catch (e) {
+      alert(`Errore: ${e.message}`);
+    } finally {
+      setIsOpeningTerminal(false);
+    }
+  };
+
+  const hasHistory = status?.outputHistory && status.outputHistory.length > 0;
+
   return (
-    <div
-      className={`rounded-lg border-2 ${statusInfo.borderColor} ${statusInfo.bgColor} p-6 shadow-lg transition-all hover:shadow-xl`}
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-4 h-4 rounded-full ${statusInfo.color} animate-pulse`}></div>
-          <h2 className="text-2xl font-bold text-gray-800">{project.name}</h2>
+    <div className={`project-card status-${statusKey}`}>
+
+      {/* ── Header: name + CMD + badge ──────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 7 }}>
+        <h2 style={{
+          flex: 1, margin: 0,
+          fontFamily: 'Syne, sans-serif', fontSize: '0.95rem', fontWeight: 700,
+          color: 'var(--text-bright)', lineHeight: 1.3, wordBreak: 'break-word'
+        }}>
+          {project.name}
+        </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+          <button
+            onClick={handleExclude}
+            disabled={isExcluding}
+            title="Escludi questo percorso dal monitoraggio"
+            style={{
+              display: 'inline-flex', alignItems: 'center',
+              padding: '3px 8px',
+              background: 'rgba(255,61,113,0.07)',
+              border: '1px solid rgba(255,61,113,0.25)',
+              color: 'rgba(255,61,113,0.6)',
+              borderRadius: 5,
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem',
+              cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,61,113,0.14)'; e.currentTarget.style.color = 'var(--red)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,61,113,0.07)'; e.currentTarget.style.color = 'rgba(255,61,113,0.6)'; }}
+          >
+            {isExcluding ? <span className="spin" /> : '⊗'}
+          </button>
+          <button
+            onClick={handleOpenTerminal}
+            disabled={isOpeningTerminal}
+            className="btn-cmd"
+            title="Apri CMD nella directory del progetto"
+          >
+            {isOpeningTerminal ? <span className="spin" /> : <span style={{ opacity: 0.6 }}>›</span>}
+            CMD
+          </button>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center',
+            padding: '2px 8px',
+            background: s.bg, border: `1px solid ${s.border}`,
+            borderRadius: 12,
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '0.58rem',
+            fontWeight: 600, letterSpacing: '0.1em',
+            color: s.color, whiteSpace: 'nowrap'
+          }}>
+            {s.label}
+          </span>
         </div>
-        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${statusInfo.textColor} bg-white border ${statusInfo.borderColor}`}>
-          {statusInfo.label}
-        </span>
       </div>
 
-      {/* Pulsante Segna come Controllato */}
-      {status?.status === 'check' && (
-        <div className="mb-4">
-          <button
-            onClick={handleMarkAsChecked}
-            disabled={isMarking}
-            className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-orange-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            {isMarking ? (
-              <>
-                <span className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span>
-                Segno come controllato...
-              </>
-            ) : (
-              <>
-                <span>✓</span>
-                Segna come Controllato
-              </>
+      {/* ── Path ────────────────────────────────────────── */}
+      <p style={{
+        fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+        color: 'var(--text-secondary)', margin: '0 0 0',
+        wordBreak: 'break-all', lineHeight: 1.5
+      }}>
+        {project.path}
+      </p>
+
+      {/* ── Session Info ────────────────────────────────── */}
+      {status?.sessionId && (
+        <>
+          <div className="card-sep" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {status.slug && <InfoRow label="slug"   value={status.slug} valueColor="var(--text-primary)" />}
+            <InfoRow label="id"     value={`${status.sessionId.substring(0, 8)}…`} />
+            {status.gitBranch && <InfoRow label="branch" value={status.gitBranch} valueColor="var(--blue)" />}
+          </div>
+        </>
+      )}
+
+      {/* ── Last Update ─────────────────────────────────── */}
+      {status && (
+        <>
+          <div className="card-sep" />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '0.58rem',
+              color: 'var(--text-secondary)', letterSpacing: '0.05em'
+            }}>
+              aggiornato
+            </span>
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+              color: 'var(--text-primary)'
+            }}>
+              {fmt(status.lastUpdate)}
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* ── Output ──────────────────────────────────────── */}
+      {status && (
+        <>
+          <div className="card-sep" />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '0.58rem',
+              color: 'var(--text-secondary)', letterSpacing: '0.06em'
+            }}>
+              {statusKey === 'active' ? '⚡ output' : statusKey === 'check' ? '✓ output' : 'output'}
+            </span>
+            {hasHistory && (
+              <button
+                onClick={() => setShowHistory(v => !v)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: '0.6rem',
+                  color: 'var(--blue)'
+                }}
+              >
+                {showHistory ? '▼ chiudi' : '▶ storia'}
+              </button>
             )}
+          </div>
+
+          {!showHistory ? (
+            <div className="terminal-block">
+              {statusKey === 'active' && (status.fullText || status.lastOutput)
+                ? (status.fullText || status.lastOutput)
+                : statusKey === 'check' && status.lastOutput
+                ? status.lastOutput
+                : <span style={{ opacity: 0.5 }}>// sessione inattiva</span>
+              }
+            </div>
+          ) : (
+            <div className="terminal-block" style={{ maxHeight: 240 }}>
+              {hasHistory
+                ? status.outputHistory.map((entry, i) => (
+                    <div key={i} style={{
+                      borderBottom: i < status.outputHistory.length - 1
+                        ? '1px solid var(--border-dim)' : 'none',
+                      paddingBottom: 4, marginBottom: 4
+                    }}>
+                      <span style={{ color: 'var(--text-muted)', marginRight: 8 }}>
+                        {new Date(entry.timestamp).toLocaleTimeString('it-IT')}
+                      </span>
+                      {entry.toolName && (
+                        <span style={{
+                          background: 'var(--blue-dim)', color: 'var(--blue)',
+                          padding: '0 4px', borderRadius: 3,
+                          fontSize: '0.58rem', marginRight: 6
+                        }}>
+                          {entry.toolName}
+                        </span>
+                      )}
+                      {entry.output}
+                    </div>
+                  ))
+                : <span style={{ opacity: 0.5 }}>// nessuno storico</span>
+              }
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Trova Terminale ─────────────────────────────── */}
+      <div style={{ marginTop: 10 }}>
+        <button
+          onClick={handleFindTerminal}
+          disabled={loadingTerminal}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 5,
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+            color: 'var(--text-secondary)', cursor: 'pointer',
+            transition: 'border-color 0.15s, color 0.15s'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          {loadingTerminal ? <span className="spin" /> : '⬡'}
+          {loadingTerminal ? 'ricerca...' : 'trova finestra'}
+        </button>
+
+        {terminalWindows !== null && (
+          <div style={{ marginTop: 7 }}>
+            {terminalWindows.length === 0 ? (
+              <p style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+                color: 'var(--text-muted)', margin: 0
+              }}>
+                // nessuna finestra terminale trovata
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {terminalWindows.map((w, i) => (
+                  <div key={i} style={{
+                    padding: '5px 8px',
+                    background: 'var(--bg-inset)',
+                    border: '1px solid var(--border-dim)',
+                    borderRadius: 5,
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem'
+                  }}>
+                    <span style={{ color: 'var(--blue)', marginRight: 6 }}>PID {w.pid}</span>
+                    <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>{w.name}</span>
+                    <span style={{ color: 'var(--text-primary)' }}>{w.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Mark Checked ────────────────────────────────── */}
+      {statusKey === 'check' && (
+        <div style={{ marginTop: 12 }}>
+          <button onClick={handleMarkAsChecked} disabled={isMarking} className="btn-check">
+            {isMarking
+              ? <><span className="spin" /> SEGNO...</>
+              : <><span>✓</span> SEGNA COME CONTROLLATO</>
+            }
           </button>
         </div>
       )}
 
-      {/* Path */}
-      <div className="mb-4">
-        <p className="text-xs text-gray-500 font-mono break-all">
-          {project.path}
-        </p>
-      </div>
-
-      {/* Session Info */}
-      {status?.sessionId && (
-        <div className="mb-4 space-y-2">
-          {status.slug && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">📝</span>
-              <p className="text-sm text-purple-600 font-semibold">
-                {status.slug}
-              </p>
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">🔑</span>
-            <p className="text-xs text-gray-500 font-mono">
-              {status.sessionId.substring(0, 8)}...
-            </p>
-          </div>
-          {status.gitBranch && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">🌿</span>
-              <p className="text-xs text-blue-600 font-mono">
-                {status.gitBranch}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Status Info */}
-      <div className="space-y-3">
-        {/* Ultimo aggiornamento */}
-        <div className="bg-white rounded-lg p-3 border border-gray-200">
-          <p className="text-xs text-gray-500 mb-1">Ultimo aggiornamento</p>
-          <p className="text-sm font-semibold text-gray-700">
-            {status?.lastUpdate ? formatTimestamp(status.lastUpdate) : 'N/A'}
-          </p>
-        </div>
-
-        {/* Output sessione */}
-        {status && (
-          <div className="bg-white rounded-lg p-3 border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-gray-500">Output sessione</p>
-              {status.outputHistory && status.outputHistory.length > 0 && (
-                <button
-                  onClick={() => setShowFullOutput(!showFullOutput)}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1"
-                >
-                  {showFullOutput ? '▼ Nascondi' : '▶ Mostra tutto'}
-                </button>
-              )}
-            </div>
-
-            {!showFullOutput ? (
-              /* Visualizzazione collassata */
-              <div>
-                {status.status === 'active' ? (
-                  <div>
-                    <p className="text-sm text-gray-600 italic mb-2">
-                      ⚡ Sessione in corso...
-                    </p>
-                    {(status.fullText || status.lastOutput) && (
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                        {status.fullText || status.lastOutput}
-                      </p>
-                    )}
-                  </div>
-                ) : status.status === 'check' ? (
-                  <div>
-                    <p className="text-sm text-orange-600 font-semibold mb-2">
-                      ✅ Completato - Da controllare
-                    </p>
-                    {status.lastOutput && (
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                        {status.lastOutput}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 italic">
-                    💤 Sessione inattiva
-                  </p>
-                )}
-              </div>
-            ) : (
-              /* Visualizzazione espansa - storico completo */
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {status.outputHistory && status.outputHistory.length > 0 ? (
-                  status.outputHistory.map((entry, idx) => (
-                    <div
-                      key={idx}
-                      className="text-xs border-l-2 border-gray-300 pl-2 py-1"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-gray-400">
-                          {new Date(entry.timestamp).toLocaleTimeString('it-IT')}
-                        </span>
-                        {entry.toolName && (
-                          <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-semibold">
-                            {entry.toolName}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-gray-700 font-mono break-words">
-                        {entry.output}
-                      </p>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-gray-400 italic">Nessuno storico disponibile</p>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Timestamp ricezione */}
-        {status?.timestamp && (
-          <div className="text-xs text-gray-400 text-right">
-            Ricevuto: {formatTimestamp(status.timestamp)}
-          </div>
-        )}
-      </div>
-
-      {/* No data indicator */}
+      {/* ── No Data ─────────────────────────────────────── */}
       {!status && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-3">
-          <p className="text-sm text-yellow-700">
-            In attesa di dati...
-          </p>
+        <div style={{
+          marginTop: 10, padding: '9px 11px',
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px dashed var(--border-dim)', borderRadius: 6,
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+          color: 'var(--text-muted)'
+        }}>
+          // attesa dati...
         </div>
       )}
+
     </div>
   );
 }
