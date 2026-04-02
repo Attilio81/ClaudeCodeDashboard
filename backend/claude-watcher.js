@@ -6,14 +6,16 @@ import os from 'os';
 const CLAUDE_DIR = path.join(os.homedir(), '.claude', 'projects');
 
 export class ClaudeSessionWatcher {
-  constructor(projects, onUpdate) {
+  constructor(projects, onUpdate, onConfigChange = null) {
     this.projects = projects;
     this.onUpdate = onUpdate;
+    this.onConfigChange = onConfigChange;
     this.watchers = [];
     this.watcherMap = new Map(); // projectName -> chokidar watcher
     this.projectDirs = new Map();
-    this.manuallyChecked = new Map(); // Progetti segnati manualmente come controllati (projectName -> timestamp)
-    this.lastToolResultTime = new Map(); // Timestamp ultimo tool result per progetto
+    this.manuallyChecked = new Map();
+    this.lastToolResultTime = new Map();
+    this.lastBroadcastedStatus = new Map(); // Per evitare log duplicati
     this.periodicCheckInterval = null;
     this.discoveredProjects = new Set(); // Progetti già scoperti per evitare duplicati
     this.projectsWatcher = null; // Watcher sulla directory .claude/projects
@@ -21,12 +23,14 @@ export class ClaudeSessionWatcher {
 
   // Converti path progetto in nome directory Claude
   projectPathToClaudeDirName(projectPath) {
-    return projectPath
-      .replace(/:\\/g, '--')  // Drive letter (C:\) -> C-- (prima di altre sostituzioni!)
-      .replace(/\\/g, '-')    // Altri backslash -> -
-      .replace(/\//g, '-')    // Forward slash -> -
-      .replace(/\s+/g, '-')   // Spazi -> -
-      .replace(/^-/, '');     // Rimuovi trattino iniziale se presente
+    const base = projectPath
+      .replace(/:\\/g, '--')
+      .replace(/\\/g, '-')
+      .replace(/\//g, '-')
+      .replace(/\s+/g, '-')
+      .replace(/^-/, '');
+    // Claude Code sostituisce ogni byte non-ASCII con '-' (es. 'à' = 2 byte → '--')
+    return base.replace(/[^\x00-\x7F]/g, c => '-'.repeat(Buffer.byteLength(c, 'utf8')));
   }
 
   // Trova file sessione attivo in una directory progetto
@@ -430,48 +434,31 @@ export class ClaudeSessionWatcher {
 
           console.log(`\n🆕 Nuovo progetto rilevato: ${projectName}`);
 
-          const newProject = {
-            name: projectName,
-            path: projectPath
-          };
-
-          // Aggiungi alla lista progetti
+          const newProject = { name: projectName, path: projectPath };
           this.projects.push(newProject);
-
-          // Aggiungi watcher per il nuovo progetto
           this.addProjectWatcher(newProject);
+          if (this.onConfigChange) this.onConfigChange();
         } catch (error) {
           console.error(`❌ Errore rilevamento progetto ${claudeDirName}:`, error.message);
         }
       })
       .on('add', (filePath) => {
-        // Rileva nuovi file .jsonl in directory esistenti
         if (!filePath.endsWith('.jsonl')) return;
 
         const claudeProjectDir = path.dirname(filePath);
         const claudeDirName = path.basename(claudeProjectDir);
 
-        // Ignora se già scoperto
-        if (this.discoveredProjects.has(claudeDirName)) {
-          return;
-        }
+        if (this.discoveredProjects.has(claudeDirName)) return;
 
-        // Converti nome directory in path originale
         const projectPath = this.claudeDirNameToPath(claudeDirName);
         const projectName = path.basename(projectPath);
 
         console.log(`\n🆕 Nuova sessione rilevata per: ${projectName}`);
 
-        const newProject = {
-          name: projectName,
-          path: projectPath
-        };
-
-        // Aggiungi alla lista progetti
+        const newProject = { name: projectName, path: projectPath };
         this.projects.push(newProject);
-
-        // Aggiungi watcher per il nuovo progetto
         this.addProjectWatcher(newProject);
+        if (this.onConfigChange) this.onConfigChange();
       })
       .on('error', (error) => {
         console.error('❌ Errore watcher directory progetti:', error.message);
@@ -593,9 +580,14 @@ export class ClaudeSessionWatcher {
     };
 
     this.onUpdate(statusData);
-    const sessionInfo = data.slug ? ` [${data.slug}]` : '';
-    const historyInfo = data.outputHistory ? ` (${data.outputHistory.length} eventi)` : '';
-    console.log(`📊 ${project.name}${sessionInfo}: ${data.status}${historyInfo} - "${output.substring(0, 50)}..."`);
+
+    // Log solo quando lo stato cambia (non ad ogni periodic check)
+    const prevStatus = this.lastBroadcastedStatus.get(project.name);
+    if (prevStatus !== data.status) {
+      const sessionInfo = data.slug ? ` [${data.slug}]` : '';
+      console.log(`📊 ${project.name}${sessionInfo}: ${prevStatus || 'new'} → ${data.status}`);
+      this.lastBroadcastedStatus.set(project.name, data.status);
+    }
   }
 
   stop() {

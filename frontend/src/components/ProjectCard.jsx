@@ -35,6 +35,62 @@ function InfoRow({ label, value, valueColor }) {
   );
 }
 
+function WindowRow({ window: w }) {
+  const [focusing, setFocusing] = useState(false);
+  const [focusResult, setFocusResult] = useState(null);
+
+  const handleFocus = async () => {
+    setFocusing(true);
+    setFocusResult(null);
+    try {
+      const res = await fetch(`http://localhost:3001/api/focus-window/${w.pid}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: w.title, tabIndex: w.tabIndex ?? -1 })
+      });
+      setFocusResult(res.ok ? 'ok' : 'err');
+    } catch {
+      setFocusResult('err');
+    } finally {
+      setFocusing(false);
+      setTimeout(() => setFocusResult(null), 2000);
+    }
+  };
+
+  return (
+    <div style={{
+      padding: '5px 8px',
+      background: 'var(--bg-inset)',
+      border: '1px solid var(--border-dim)',
+      borderRadius: 5,
+      fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+      display: 'flex', alignItems: 'center', gap: 6
+    }}>
+      <span style={{ color: 'var(--blue)', flexShrink: 0 }}>PID {w.pid}</span>
+      <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>{w.name}</span>
+      <span style={{ color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>
+      <button
+        onClick={handleFocus}
+        disabled={focusing}
+        title="Porta in primo piano"
+        style={{
+          flexShrink: 0,
+          background: focusResult === 'ok' ? 'rgba(0,230,118,0.1)' : focusResult === 'err' ? 'rgba(255,61,113,0.1)' : 'rgba(255,255,255,0.04)',
+          border: `1px solid ${focusResult === 'ok' ? 'var(--green-border)' : focusResult === 'err' ? 'var(--red-border)' : 'var(--border-dim)'}`,
+          borderRadius: 4, cursor: 'pointer',
+          color: focusResult === 'ok' ? 'var(--green)' : focusResult === 'err' ? 'var(--red)' : 'var(--text-secondary)',
+          fontSize: '0.7rem', padding: '2px 6px', lineHeight: 1.4,
+          transition: 'all 0.15s'
+        }}
+        onMouseEnter={e => { if (!focusResult) { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.color = 'var(--text-primary)'; }}}
+        onMouseLeave={e => { if (!focusResult) { e.currentTarget.style.borderColor = 'var(--border-dim)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}}
+      >
+        {focusing ? <span className="spin" style={{ width: 8, height: 8 }} /> : focusResult === 'ok' ? '✓' : focusResult === 'err' ? '✗' : '⬆'}
+      </button>
+    </div>
+  );
+}
+
 export default function ProjectCard({ project, status }) {
   const [showHistory, setShowHistory] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
@@ -310,17 +366,7 @@ export default function ProjectCard({ project, status }) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {terminalWindows.map((w, i) => (
-                  <div key={i} style={{
-                    padding: '5px 8px',
-                    background: 'var(--bg-inset)',
-                    border: '1px solid var(--border-dim)',
-                    borderRadius: 5,
-                    fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem'
-                  }}>
-                    <span style={{ color: 'var(--blue)', marginRight: 6 }}>PID {w.pid}</span>
-                    <span style={{ color: 'var(--text-secondary)', marginRight: 6 }}>{w.name}</span>
-                    <span style={{ color: 'var(--text-primary)' }}>{w.title}</span>
-                  </div>
+                  <WindowRow key={i} window={w} />
                 ))}
               </div>
             )}

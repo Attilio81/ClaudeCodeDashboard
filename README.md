@@ -1,48 +1,49 @@
 <div align="center">
 
-# 🚀 Dashboard Claude Code
+# Dashboard Claude Code
 
-**Real-time monitoring dashboard for multiple Claude Code sessions**
+**Monitoraggio in tempo reale di sessioni Claude Code parallele**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/react-18.2.0-blue)](https://reactjs.org/)
 [![Status](https://img.shields.io/badge/status-active-success)](https://github.com)
 
-*Monitora in tempo reale N sessioni Claude Code parallele su progetti diversi — zero configurazione manuale*
+*Monitora N sessioni Claude Code parallele su progetti diversi — zero configurazione manuale*
 
-[Quick Start](#-quick-start) • [Features](#-features) • [Admin Panel](#-admin-panel) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
+[Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Come Funziona](#-come-funziona) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
 </div>
 
 ---
 
-## ✨ Features
+## Funzionalità
 
-### 🎯 Core
-| Feature | Descrizione |
-|---------|-------------|
-| **🗂️ Scan Roots** | Configura cartelle radice (`C:\BIZ2017`, `C:\Progetti Pilota`, ecc.) — tutte le sottocartelle con sessioni Claude vengono monitorate automaticamente |
-| **⚡ Real-Time Monitoring** | Aggiornamenti istantanei via WebSocket |
-| **🔄 Dynamic Discovery** | Nuovi progetti rilevati senza riavvio (watcher `depth: 2`) |
-| **🧠 Smart Status** | Distingue Active / Check / Idle / Error in base al tipo di entry e ai timeout |
-| **🔌 Auto-Reconnect** | Riconnessione WebSocket automatica ogni 3 secondi |
+### Core
+| Funzionalità | Descrizione |
+|--------------|-------------|
+| **Scan Roots** | Configura cartelle radice (`C:\BIZ2017`, `C:\Progetti Pilota`, ecc.) — tutte le sottocartelle con sessioni Claude vengono monitorate automaticamente, fino a 2 livelli di profondità |
+| **Aggiornamenti in tempo reale** | Notifiche istantanee via WebSocket |
+| **Discovery dinamico** | Nuovi progetti rilevati automaticamente senza riavvio del server |
+| **Stato intelligente** | Distingue Attivo / Da Controllare / Inattivo / Errore in base al tipo di entry e ai timeout |
+| **Riconnessione automatica** | Il client WebSocket si riconnette ogni 3 secondi |
 
-### 🎨 UI — Terminal Noir
-- Dark theme completo con palette CSS variabili
-- Tipografia: **Syne** (UI) + **JetBrains Mono** (dati/codice)
-- Neon glow animato sugli indicatori di stato
-- Layout a 3 colonne: Attivi / Da Controllare / Inattivi
+### UI — Terminal Noir
+- Dark theme completo con palette CSS tramite variabili
+- Tipografia: **Syne** (interfaccia) + **JetBrains Mono** (dati/codice)
+- Indicatori di stato con neon glow animato
+- Layout a 3 colonne: **Attivi** / **Da Controllare** / **Inattivi** (colonna Inattivi collassabile)
 
-### 🛠️ Gestione Progetti
-| Azione | Come |
-|--------|------|
-| **⊗ Escludi percorso** | Bottone su ogni card → rimozione immediata + salvataggio in `excluded-paths.json` |
-| **📟 Apri CMD** | Apre cmd.exe nella directory del progetto |
-| **⬡ Trova finestra** | PowerShell scansiona processi e titoli finestre per localizzare il terminale con la sessione attiva |
-| **✓ Segna controllato** | Marca un progetto "Check" come rivisto → torna a Idle |
+### Gestione Progetti
+| Azione | Descrizione |
+|--------|-------------|
+| **Escludi percorso** | Bottone ⊗ su ogni card — rimozione immediata + salvataggio in `excluded-paths.json` |
+| **Apri CMD** | Apre cmd.exe nella directory del progetto |
+| **Trova finestra** | Individua la sessione Claude nel terminale leggendo `~/.claude/sessions/` — elenca ogni tab di Windows Terminal via UIAutomation |
+| **Porta in primo piano** | Bottone ⬆ su ogni risultato — porta Windows Terminal in primo piano e seleziona la tab corretta |
+| **Segna controllato** | Marca un progetto "Da Controllare" come rivisto → torna a Inattivo |
 
-### ⚙️ Area Admin
+### Area Admin
 - Pannello laterale accessibile con **⚙ ADMIN** nell'header
 - Aggiungi / rimuovi cartelle radice di scansione
 - **Riscansiona Ora** — trova nuovi progetti senza riavviare il server
@@ -50,98 +51,100 @@
 
 ---
 
-## 🔬 Come Funziona
+## Come Funziona
 
-### Discovery: Scan Roots (v4.0.0+)
+### Discovery: Scan Roots
 
-La dashboard non scansiona più `~/.claude/projects/` alla cieca. Invece:
+La dashboard non scansiona `~/.claude/projects/` alla cieca. Il flusso è:
 
-1. Legge `backend/scan-paths.json` → lista cartelle radice configurate
-2. Per ogni radice, elenca le **sottocartelle dirette**
+1. Legge `backend/scan-paths.json` — lista cartelle radice configurate
+2. Per ogni radice, scansiona le sottocartelle ricorsivamente (profondità massima 2)
 3. Per ogni sottocartella controlla se esiste `~/.claude/projects/[path-codificato]/` con file `.jsonl`
-4. Include solo quelle con sessioni reali
+4. Include solo le cartelle con sessioni reali
 
 ```
-C:\BIZ2017\           ← cartella radice
-├── BNEGS076\         ← ha ~/.claude/projects/C--BIZ2017-BNEGS076/*.jsonl → MONITORATA
-├── BIZ2017\          ← ha sessioni → MONITORATA  
-└── Archivio\         ← nessuna sessione → IGNORATA
+C:\Progetti Pilota\           ← cartella radice
+├── DashboardClaudeCode\      ← ha sessioni Claude → MONITORATA
+├── gestione-preattività\     
+│   └── consultation-panel\  ← ha sessioni Claude (2 livelli) → MONITORATA
+└── Archivio\                 ← nessuna sessione → IGNORATA
 ```
 
 ### Codifica del percorso
 
-Claude Code codifica i path come nome directory:
+Claude Code converte i path in nomi di directory:
 ```
-C:\BIZ2017\BNEGS076  →  C--BIZ2017-BNEGS076
+C:\Progetti Pilota\MioProgetto  →  C--Progetti-Pilota-MioProgetto
 ```
 
-La dashboard fa la conversione in entrambe le direzioni.
-
-### Stato intelligente
-
-| Stato | Colore | Trigger |
-|-------|--------|---------|
-| **Active** | 🟢 neon | Tool in esecuzione **o** < 5 min dall'ultimo tool result |
-| **Check** | 🟠 amber | Completato da < 60 min — da rivedere |
-| **Idle** | ⚪ grigio | > 60 min di inattività **o** segnato manualmente |
-| **Error** | 🔴 | Impossibile leggere la sessione |
+I caratteri non-ASCII vengono codificati come uno o più `-` in base ai byte UTF-8 (es. `à` = 2 byte → `--`). La dashboard gestisce correttamente questa codifica.
 
 ### Rilevamento finestra terminale
 
-Endpoint `GET /api/projects/:name/terminal-windows`:
+Il flusso di `Trova finestra`:
 
-1. Cerca processi con il **nome del progetto nel titolo** della finestra
-2. Trova processi `node.exe` con `@anthropic-ai/claude-code` nel command line (esclude MCP server, plugin, dashboard)
-3. **Risale al terminale padre** (node → cmd/pwsh → Windows Terminal, fino a 2 livelli)
-4. Restituisce PID + nome processo + titolo finestra
+1. Legge i file `~/.claude/sessions/*.json` — contengono `{ pid, cwd, sessionId, startedAt }`
+2. Trova la sessione con `cwd` uguale al percorso del progetto
+3. Risale la catena dei processi padre fino a trovare Windows Terminal (max 6 livelli)
+4. Usa **UIAutomation** (`System.Windows.Automation`) per enumerare le singole tab di Windows Terminal
+5. Restituisce ogni tab come riga separata con titolo e indice
 
-Usa `-EncodedCommand` base64 per evitare problemi di escaping PowerShell.
+Il bottone ⬆ su ogni riga porta Windows Terminal in primo piano (con il trucco del tasto ALT per bypassare la restrizione di `SetForegroundWindow`) e poi seleziona la tab tramite `SelectionItemPattern`.
+
+Gli script PowerShell vengono scritti su file temporaneo in `%TEMP%` invece di essere passati come `-EncodedCommand`, evitando il limite di 8191 caratteri della riga di comando Windows.
+
+### Stato intelligente
+
+| Stato | Colore | Condizione |
+|-------|--------|------------|
+| **Attivo** | Verde | Tool in esecuzione **o** meno di 5 minuti dall'ultimo tool result |
+| **Da Controllare** | Arancione | Completato da meno di 60 minuti |
+| **Inattivo** | Grigio | Più di 60 minuti di inattività **o** segnato manualmente |
+| **Errore** | Rosso | Impossibile leggere la sessione |
 
 ---
 
-## 🛠️ Stack Tecnologico
+## Stack Tecnologico
 
 | Layer | Tecnologie |
 |-------|-----------|
-| **Backend** | Node.js ≥ 18, Express, ws, chokidar |
-| **Frontend** | React 18.2, Vite 5, Tailwind CSS 3 |
-| **Fonts** | Syne (Google Fonts), JetBrains Mono |
-| **Platform** | Windows (PowerShell per terminal detection) |
+| **Backend** | Node.js >= 18, Express, ws, chokidar |
+| **Frontend** | React 18.2, Vite 5 |
+| **Font** | Syne (Google Fonts), JetBrains Mono |
+| **Piattaforma** | Windows — PowerShell + UIAutomation per il rilevamento terminale |
 
 ---
 
-## 📁 Struttura Progetto
+## Struttura Progetto
 
 ```
 DashboardClaudeCode/
 ├── backend/
 │   ├── server.js              # Express + WebSocket + API REST
-│   ├── claude-watcher.js      # Monitora sessioni reali Claude Code
-│   ├── path-scanner.js        # Discovery da cartelle radice ← NEW v4
-│   ├── auto-discovery.js      # Discovery fallback da ~/.claude/projects/
-│   ├── watcher.js             # Fallback: legacy status.json
-│   ├── scan-paths.json        # Cartelle radice da scansionare ← NEW v4
-│   ├── excluded-paths.json    # Percorsi esclusi dal monitoring ← NEW v4
+│   ├── claude-watcher.js      # Monitora le sessioni reali Claude Code
+│   ├── path-scanner.js        # Discovery da cartelle radice
+│   ├── scan-paths.json        # Cartelle radice da scansionare
+│   ├── excluded-paths.json    # Percorsi esclusi dal monitoraggio
 │   └── package.json
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx                    # Layout + 3 colonne + Admin toggle
 │   │   ├── components/
 │   │   │   ├── ProjectCard.jsx        # Card progetto con azioni
-│   │   │   └── AdminPanel.jsx         # Pannello Admin ← NEW v4
+│   │   │   └── AdminPanel.jsx         # Pannello Admin
 │   │   ├── hooks/
-│   │   │   └── useWebSocket.js        # Hook WebSocket + reconnect
-│   │   └── index.css                  # CSS variables + animazioni
+│   │   │   └── useWebSocket.js        # Hook WebSocket + riconnessione
+│   │   └── index.css                  # Variabili CSS + animazioni
 │   ├── index.html
 │   └── package.json
-├── start.bat                  # Avvio rapido Windows ← NEW v4
+├── start.bat                  # Avvio rapido Windows
 ├── package.json
 └── README.md
 ```
 
 ---
 
-## 🚀 Quick Start
+## Avvio Rapido
 
 ### Prerequisiti
 
@@ -158,13 +161,13 @@ Claude Code con sessioni attive
 git clone https://github.com/Attilio81/ClaudeCodeDashboard.git
 cd ClaudeCodeDashboard
 
-# 2. Installa dipendenze
+# 2. Installa le dipendenze
 npm install
 cd backend && npm install
 cd ../frontend && npm install && cd ..
 
-# 3. Configura le cartelle radice (vedi sezione Admin)
-# oppure modifica direttamente backend/scan-paths.json
+# 3. Configura le cartelle radice (vedi sezione Admin o modifica direttamente)
+# backend/scan-paths.json
 
 # 4. Avvia
 npm run dev
@@ -175,22 +178,19 @@ Apri `http://localhost:5173`
 
 ---
 
-## ⚙️ Configurazione
+## Configurazione
 
 ### Cartelle radice (`backend/scan-paths.json`)
-
-Modifica il file per specificare dove cercare i tuoi progetti:
 
 ```json
 [
   "C:\\BIZ2017",
   "C:\\Progetti Pilota",
-  "C:\\ProgettiEgm",
-  "C:\\Users\\nome.utente\\Documents\\GitHub"
+  "C:\\ProgettiEgm"
 ]
 ```
 
-Oppure usa l'**Area Admin** nell'UI per aggiungere/rimuovere percorsi senza toccare file.
+Puoi anche usare l'**Area Admin** nell'interfaccia per aggiungere o rimuovere percorsi senza toccare file.
 
 ### Percorsi esclusi (`backend/excluded-paths.json`)
 
@@ -198,7 +198,7 @@ Popolato automaticamente quando clicchi **⊗** su una card. Per ripristinare un
 
 ```json
 [
-  "C:\\BIZ2017\\ProgettoArchiviato"
+  "C:\\Progetti Pilota\\ProgettoDaIgnorare"
 ]
 ```
 
@@ -216,7 +216,7 @@ Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 ### Progetti
 
@@ -225,16 +225,17 @@ Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
 | `GET` | `/api/health` | Stato server |
 | `GET` | `/api/projects` | Lista progetti monitorati |
 | `POST` | `/api/projects/:name/mark-checked` | Segna come controllato |
-| `POST` | `/api/projects/:name/exclude` | Escludi dal monitoring |
+| `POST` | `/api/projects/:name/exclude` | Escludi dal monitoraggio |
 | `POST` | `/api/projects/:name/open-terminal` | Apri CMD nella directory |
-| `GET` | `/api/projects/:name/terminal-windows` | Trova finestre terminale |
+| `GET` | `/api/projects/:name/terminal-windows` | Trova le tab del terminale |
+| `POST` | `/api/focus-window/:pid` | Porta finestra in primo piano e seleziona tab |
 
 ### Admin
 
 | Metodo | Endpoint | Descrizione |
 |--------|----------|-------------|
 | `GET` | `/api/admin/scan-paths` | Lista cartelle radice |
-| `POST` | `/api/admin/scan-paths` | Aggiungi cartella radice (`{ "path": "C:\\..." }`) |
+| `POST` | `/api/admin/scan-paths` | Aggiungi cartella (`{ "path": "C:\\..." }`) |
 | `DELETE` | `/api/admin/scan-paths/:index` | Rimuovi cartella radice |
 | `POST` | `/api/admin/rescan` | Riscansiona senza riavvio |
 | `GET` | `/api/admin/excluded-paths` | Lista percorsi esclusi |
@@ -269,10 +270,10 @@ Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 <details>
-<summary><b>Progetto non rilevato al primo avvio</b></summary>
+<summary><b>Progetto non rilevato</b></summary>
 
 Verifica che esista una directory sessione in `~/.claude/projects/`:
 
@@ -280,75 +281,87 @@ Verifica che esista una directory sessione in `~/.claude/projects/`:
 ls "$env:USERPROFILE\.claude\projects\" | Where-Object Name -like "*NOMEPROGETTO*"
 ```
 
-Se esiste ma non appare, controlla che il percorso del progetto sia in `scan-paths.json` e fai **Riscansiona** dal pannello Admin.
+Se esiste ma non appare, controlla che il percorso sia in `scan-paths.json` e fai **Riscansiona** dal pannello Admin. Se il progetto è in una sottocartella con caratteri non-ASCII nel percorso (es. `gestione-preattività`), la codifica viene gestita automaticamente.
 
 </details>
 
 <details>
-<summary><b>Nuovo progetto non rilevato in tempo reale</b></summary>
+<summary><b>Nuovo progetto non compare in automatico</b></summary>
 
-Il watcher dinamico usa `depth: 2` per rilevare nuovi file `.jsonl`. Se il server era avviato con una versione precedente (`depth: 1`), riavvialo. Dopo il riavvio i nuovi progetti vengono rilevati automaticamente.
+Il watcher dinamico rileva nuovi file `.jsonl` in tempo reale. Se il progetto non compare, fai **Riscansiona** dal pannello Admin oppure riavvia il server. Dopo il riavvio i nuovi progetti vengono rilevati automaticamente senza F5.
 
 </details>
 
 <details>
 <summary><b>"Trova finestra" non trova nulla</b></summary>
 
-La funzione cerca:
-1. Finestre con il nome del progetto nel **titolo** — funziona se il terminale mostra la directory corrente nel titolo (comportamento default di cmd, PowerShell, Windows Terminal)
-2. Processi `node.exe` con `@anthropic-ai/claude-code` nel command line
+La funzione richiede che:
+1. Claude Code sia attivo nel progetto (deve esistere un file in `~/.claude/sessions/` con `cwd` corrispondente)
+2. Il processo sia figlio di Windows Terminal o cmd
 
-Se non trova nulla è possibile che:
-- Il titolo della finestra non rispecchi il nome del progetto
-- La sessione Claude Code non sia attiva in questo momento
+Se la sessione è attiva ma non viene trovata, verifica che i file in `~/.claude/sessions/*.json` contengano `cwd` uguale al percorso del progetto.
+
+</details>
+
+<details>
+<summary><b>Il bottone ⬆ non porta la finestra in primo piano</b></summary>
+
+Windows blocca `SetForegroundWindow` dai processi in background. La dashboard usa un workaround con la simulazione del tasto ALT (`keybd_event`) per ottenere il permesso. Se non funziona, prova a cliccare prima sulla dashboard e poi su ⬆.
 
 </details>
 
 <details>
 <summary><b>WebSocket si disconnette continuamente</b></summary>
 
-Il frontend riconnette ogni 3 secondi automaticamente. Se il problema persiste:
-- Verifica che il backend sia in esecuzione su porta 3001
+Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste:
+- Verifica che il backend sia in esecuzione sulla porta 3001
 - Controlla che non ci siano firewall locali che bloccano `localhost:3001`
 
 </details>
 
 ---
 
-## 📊 Changelog
+## Changelog
+
+### v4.1.0 (2026-04-02) — UIAutomation Tab Detection + Bugfix
+- **Trova finestra**: rilevamento sessioni da `~/.claude/sessions/*.json` invece di scansione processi
+- **Trova finestra**: elenca ogni singola tab di Windows Terminal via UIAutomation
+- **Porta in primo piano**: selezione della tab specifica tramite `SelectionItemPattern`
+- **Porta in primo piano**: workaround ALT-key per bypassare restrizione `SetForegroundWindow`
+- **Fix**: script PowerShell scritti su file temporaneo (evita limite 8191 char della riga di comando)
+- **Fix**: codifica percorsi non-ASCII (`à` = 2 byte UTF-8 → `--`) in `path-scanner.js`, `claude-watcher.js`, `server.js`
+- **Fix**: scansione ricorsiva a profondità 2 per rilevare progetti in sottocartelle (es. `gestione-preattività/consultation-panel`)
+- **Fix**: broadcast `config` al rilevamento dinamico di nuovi progetti (non più necessario fare F5)
+- **Fix**: log deduplicati — stampa solo quando lo stato cambia
+- Colonna Inattivi collassabile (strip verticale 32px)
+- Esclusione progetti con bottone ⊗ e persistenza
 
 ### v4.0.0 (2026-04-02) — Scan Roots + Terminal Noir UI
-- 🆕 **Scan Roots**: discovery da cartelle radice configurabili invece di `~/.claude/projects/`
-- 🆕 **Area Admin**: pannello UI per gestire percorsi di scansione e percorsi esclusi
-- 🆕 **Escludi percorso**: bottone ⊗ su ogni card + persistenza in `excluded-paths.json`
-- 🆕 **Trova finestra terminale**: PowerShell risale al terminale padre del processo Claude
-- 🆕 **start.bat**: avvio rapido su Windows
-- 🎨 **Terminal Noir UI**: redesign completo — dark theme, Syne + JetBrains Mono, neon glow
-- 🐛 **Fix**: `depth: 2` nel watcher dinamico — nuovi progetti rilevati in tempo reale
-- 🐛 **Fix**: deduplicazione per nome progetto (non solo per path)
-- 🐛 **Fix**: testo visibile su sfondo scuro (variabili CSS corrette)
+- **Scan Roots**: discovery da cartelle radice configurabili
+- **Area Admin**: pannello UI per gestire percorsi di scansione e percorsi esclusi
+- **Trova finestra terminale**: prima implementazione
+- **start.bat**: avvio rapido su Windows
+- Redesign completo UI — dark theme, Syne + JetBrains Mono, neon glow
 
 ### v3.0.0 (2026-01-22) — Dynamic Discovery
-- 🆕 Auto-discovery dinamico — nuovi progetti aggiunti senza riavvio
-- ⚡ Timeout intelligenti (5 min tool, 60 min idle)
-- 📊 Storico sessione (ultimi 20 eventi)
-- 🌿 Visualizzazione branch Git
-- ✓ Marcatura manuale "controllato"
+- Auto-discovery dinamico — nuovi progetti aggiunti senza riavvio
+- Timeout intelligenti (5 min tool, 60 min idle)
+- Storico sessione (ultimi 20 eventi)
+- Visualizzazione branch Git
+- Marcatura manuale "controllato"
 
-### v2.0.0 (2026-01-15) — Real Sessions
+### v2.0.0 (2026-01-15) — Sessioni Reali
 - Parsing file `.jsonl` in tempo reale
 - Auto-detection sessioni Claude Code
 
-### v1.0.0 (2026-01-01) — Initial Release
+### v1.0.0 (2026-01-01) — Prima Release
 - Monitoraggio via `status.json`
-- UI Tailwind CSS + WebSocket
+- WebSocket + UI
 
 ---
 
 <div align="center">
 
-**[Report Bug](https://github.com/Attilio81/ClaudeCodeDashboard/issues)** • **[Request Feature](https://github.com/Attilio81/ClaudeCodeDashboard/issues)**
-
-Made with ❤️ by developers, for developers
+**[Segnala un Bug](https://github.com/Attilio81/ClaudeCodeDashboard/issues)** • **[Richiedi una Funzionalità](https://github.com/Attilio81/ClaudeCodeDashboard/issues)**
 
 </div>

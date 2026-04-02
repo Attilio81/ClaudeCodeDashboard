@@ -10,13 +10,18 @@ const CONN = {
   error:        { dot: 'dot dot-error', label: 'FAULT',    color: 'var(--red)'   },
 };
 
-function ColHeader({ dotClass, label, count, color, dimColor, borderColor }) {
+function ColHeader({ dotClass, label, count, color, dimColor, borderColor, onToggle, isOpen }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 8,
-      padding: '8px 14px', marginBottom: 14,
-      background: dimColor, border: `1px solid ${borderColor}`, borderRadius: 8
-    }}>
+    <div
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 14px', marginBottom: 14,
+        background: dimColor, border: `1px solid ${borderColor}`, borderRadius: 8,
+        cursor: onToggle ? 'pointer' : 'default',
+        userSelect: 'none'
+      }}
+    >
       <span className={dotClass} />
       <span style={{
         fontFamily: 'Syne, sans-serif', fontSize: '0.68rem',
@@ -32,6 +37,17 @@ function ColHeader({ dotClass, label, count, color, dimColor, borderColor }) {
       }}>
         {count}
       </span>
+      {onToggle && (
+        <span style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem',
+          color, opacity: 0.5, marginLeft: 6,
+          transition: 'transform 0.2s',
+          display: 'inline-block',
+          transform: isOpen ? 'rotate(0deg)' : 'rotate(-90deg)'
+        }}>
+          ▼
+        </span>
+      )}
     </div>
   );
 }
@@ -54,6 +70,7 @@ function App() {
   const { projects, projectStatuses, connectionStatus } = useWebSocket();
   const conn = CONN[connectionStatus] || CONN.disconnected;
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showIdle, setShowIdle] = useState(false);
 
   const active  = projects.filter(p => projectStatuses[p.name]?.status === 'active');
   const check   = projects.filter(p => projectStatuses[p.name]?.status === 'check');
@@ -210,10 +227,10 @@ function App() {
           </div>
         )}
 
-        {/* 3-column grid */}
+        {/* Grid: 2 or 3 columns depending on idle visibility */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
+          gridTemplateColumns: showIdle ? 'repeat(3, 1fr)' : '1fr 1fr auto',
           gap: 24,
           alignItems: 'start'
         }}>
@@ -253,23 +270,60 @@ function App() {
             </div>
           </div>
 
-          {/* IDLE */}
-          <div>
-            <ColHeader
-              dotClass="dot dot-idle"
-              label="Inattivi"
-              count={idle.length}
-              color="var(--slate)"
-              dimColor="var(--slate-dim)"
-              borderColor="var(--slate-border)"
-            />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-              {idle.map(p => (
-                <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
-              ))}
-              {idle.length === 0 && <EmptySlot text="// tutti attivi ✦" />}
+          {/* IDLE — full column or collapsed tab */}
+          {showIdle ? (
+            <div>
+              <ColHeader
+                dotClass="dot dot-idle"
+                label="Inattivi"
+                count={idle.length}
+                color="var(--slate)"
+                dimColor="var(--slate-dim)"
+                borderColor="var(--slate-border)"
+                onToggle={() => setShowIdle(false)}
+                isOpen={true}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+                {idle.map(p => (
+                  <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
+                ))}
+                {idle.length === 0 && <EmptySlot text="// tutti attivi ✦" />}
+              </div>
             </div>
-          </div>
+          ) : (
+            <button
+              onClick={() => setShowIdle(true)}
+              title="Mostra colonna Inattivi"
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', gap: 10,
+                width: 32, alignSelf: 'stretch', minHeight: 60,
+                background: 'var(--slate-dim)',
+                border: '1px solid var(--slate-border)',
+                borderRadius: 8, cursor: 'pointer',
+                padding: '12px 0',
+                transition: 'background 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(100,116,139,0.15)'; e.currentTarget.style.borderColor = 'rgba(100,116,139,0.4)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--slate-dim)'; e.currentTarget.style.borderColor = 'var(--slate-border)'; }}
+            >
+              <span style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: '0.58rem',
+                color: 'var(--slate)', letterSpacing: '0.12em',
+                writingMode: 'vertical-rl', textOrientation: 'mixed',
+                transform: 'rotate(180deg)', whiteSpace: 'nowrap'
+              }}>
+                INATTIVI
+              </span>
+              <span style={{
+                fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem',
+                fontWeight: 700, color: 'var(--slate)', opacity: 0.7
+              }}>
+                {idle.length}
+              </span>
+              <span style={{ fontSize: '0.6rem', color: 'var(--slate)', opacity: 0.5 }}>▶</span>
+            </button>
+          )}
         </div>
       </main>
 
