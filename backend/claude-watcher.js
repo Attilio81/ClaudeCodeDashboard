@@ -6,10 +6,11 @@ import os from 'os';
 const CLAUDE_DIR = path.join(os.homedir(), '.claude', 'projects');
 
 export class ClaudeSessionWatcher {
-  constructor(projects, onUpdate, onConfigChange = null) {
+  constructor(projects, onUpdate, onConfigChange = null, onNewProjectDir = null) {
     this.projects = projects;
     this.onUpdate = onUpdate;
     this.onConfigChange = onConfigChange;
+    this.onNewProjectDir = onNewProjectDir;
     this.watchers = [];
     this.watcherMap = new Map(); // projectName -> chokidar watcher
     this.projectDirs = new Map();
@@ -58,27 +59,37 @@ export class ClaudeSessionWatcher {
     return latest.path;
   }
 
+  // Leggi solo gli ultimi byteCount byte del file (evita di caricare tutto in RAM)
+  readTailBytes(filePath, byteCount = 32768) {
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size === 0) return '';
+      const readSize = Math.min(byteCount, stat.size);
+      const buf = Buffer.alloc(readSize);
+      const fd = fs.openSync(filePath, 'r');
+      fs.readSync(fd, buf, 0, readSize, stat.size - readSize);
+      fs.closeSync(fd);
+      return buf.toString('utf-8');
+    } catch {
+      return '';
+    }
+  }
+
   // Leggi ultima riga VALIDA del file JSONL (ignora system messages)
   readLastLine(filePath) {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.trim().split('\n').filter(l => l.trim());
-
+      const tail = this.readTailBytes(filePath);
+      const lines = tail.split('\n').filter(l => l.trim());
       if (lines.length === 0) return null;
 
-      // Cerca ultima entry valida (non system)
       for (let i = lines.length - 1; i >= 0; i--) {
         try {
           const entry = JSON.parse(lines[i]);
-          // Ignora entry di tipo "system"
-          if (entry.type !== 'system') {
-            return entry;
-          }
+          if (entry.type !== 'system') return entry;
         } catch {
           continue;
         }
       }
-
       return null;
     } catch (error) {
       console.error(`❌ Errore lettura ${filePath}:`, error.message);
@@ -89,19 +100,12 @@ export class ClaudeSessionWatcher {
   // Leggi ultime N righe del file JSONL per storico output
   readLastNLines(filePath, n = 20) {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.trim().split('\n').filter(l => l.trim());
-
+      const tail = this.readTailBytes(filePath);
+      const lines = tail.split('\n').filter(l => l.trim());
       if (lines.length === 0) return [];
 
-      // Prendi ultime N righe
-      const lastNLines = lines.slice(-n);
-      return lastNLines.map(line => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
+      return lines.slice(-n).map(line => {
+        try { return JSON.parse(line); } catch { return null; }
       }).filter(Boolean);
     } catch (error) {
       console.error(`❌ Errore lettura ${filePath}:`, error.message);
@@ -413,63 +417,30 @@ export class ClaudeSessionWatcher {
     this.projectsWatcher
       .on('addDir', (dirPath) => {
         const claudeDirName = path.basename(dirPath);
-        
-        // Ignora se già scoperto
-        if (this.discoveredProjects.has(claudeDirName)) {
-          return;
-        }
+
+        if (this.discoveredProjects.has(claudeDirName)) return;
 
         // Verifica che ci siano file .jsonl nella directory
         try {
           const files = fs.readdirSync(dirPath);
-          const hasSession = files.some(f => f.endsWith('.jsonl'));
+          if (!files.some(f => f.endsWith('.jsonl'))) return;
+        } catch { return; }
 
-          if (!hasSession) {
-            return;
-          }
-
-          // Converti nome directory in path originale
-          const projectPath = this.claudeDirNameToPath(claudeDirName);
-          const projectName = path.basename(projectPath);
-
-          console.log(`\n🆕 Nuovo progetto rilevato: ${projectName}`);
-
-          const newProject = { name: projectName, path: projectPath };
-          this.projects.push(newProject);
-          this.addProjectWatcher(newProject);
-          if (this.onConfigChange) this.onConfigChange();
-        } catch (error) {
-          console.error(`❌ Errore rilevamento progetto ${claudeDirName}:`, error.message);
-        }
+        // Delega al server il lookup del path reale tramite discoverFromRoots
+        if (this.onNewProjectDir) this.onNewProjectDir(claudeDirName);
       })
       .on('add', (filePath) => {
         if (!filePath.endsWith('.jsonl')) return;
 
-        const claudeProjectDir = path.dirname(filePath);
-        const claudeDirName = path.basename(claudeProjectDir);
-
+        const claudeDirName = path.basename(path.dirname(filePath));
         if (this.discoveredProjects.has(claudeDirName)) return;
 
-        const projectPath = this.claudeDirNameToPath(claudeDirName);
-        const projectName = path.basename(projectPath);
-
-        console.log(`\n🆕 Nuova sessione rilevata per: ${projectName}`);
-
-        const newProject = { name: projectName, path: projectPath };
-        this.projects.push(newProject);
-        this.addProjectWatcher(newProject);
-        if (this.onConfigChange) this.onConfigChange();
+        // Delega al server il lookup del path reale tramite discoverFromRoots
+        if (this.onNewProjectDir) this.onNewProjectDir(claudeDirName);
       })
       .on('error', (error) => {
         console.error('❌ Errore watcher directory progetti:', error.message);
       });
-  }
-
-  // Converti nome directory Claude in path originale (inverso di projectPathToClaudeDirName)
-  claudeDirNameToPath(dirName) {
-    return dirName
-      .replace(/^([A-Z])--/, '$1:\\')  // C-- -> C:\
-      .replace(/-/g, '\\');             // Altri trattini -> backslash
   }
 
   // Controllo periodico per aggiornare stati dopo timeout

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE } from '../config.js';
 
 const STATUS_STYLE = {
   active: { color: 'var(--green)', bg: 'var(--green-dim)', border: 'var(--green-border)', label: 'ATTIVO' },
@@ -43,7 +44,7 @@ function WindowRow({ window: w }) {
     setFocusing(true);
     setFocusResult(null);
     try {
-      const res = await fetch(`http://localhost:3001/api/focus-window/${w.pid}`, {
+      const res = await fetch(`${API_BASE}/api/focus-window/${w.pid}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: w.title, tabIndex: w.tabIndex ?? -1 })
@@ -99,8 +100,11 @@ function WindowRow({ window: w }) {
 export default function ProjectCard({ project, status }) {
   const [showHistory, setShowHistory] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [markError, setMarkError] = useState(null);
   const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
+  const [terminalError, setTerminalError] = useState(null);
   const [isExcluding, setIsExcluding] = useState(false);
+  const [confirmExclude, setConfirmExclude] = useState(false);
   const [terminalWindows, setTerminalWindows] = useState(null);
   const [loadingTerminal, setLoadingTerminal] = useState(false);
 
@@ -110,14 +114,16 @@ export default function ProjectCard({ project, status }) {
   const handleMarkAsChecked = async () => {
     if (isMarking) return;
     setIsMarking(true);
+    setMarkError(null);
     try {
       const res = await fetch(
-        `http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/mark-checked`,
+        `${API_BASE}/api/projects/${encodeURIComponent(project.name)}/mark-checked`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       );
       if (!res.ok) throw new Error('Errore');
     } catch {
-      alert('Errore nel segnare il progetto come controllato');
+      setMarkError('Errore');
+      setTimeout(() => setMarkError(null), 3000);
     } finally {
       setIsMarking(false);
     }
@@ -125,17 +131,20 @@ export default function ProjectCard({ project, status }) {
 
   const handleExclude = async () => {
     if (isExcluding) return;
-    if (!confirm(`Escludere "${project.name}" dal monitoraggio?\nPercorso: ${project.path}\n\nPotrà essere rimosso da excluded-paths.json per ripristinarlo.`)) return;
+    if (!confirmExclude) {
+      setConfirmExclude(true);
+      setTimeout(() => setConfirmExclude(false), 4000);
+      return;
+    }
+    setConfirmExclude(false);
     setIsExcluding(true);
     try {
       const res = await fetch(
-        `http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/exclude`,
+        `${API_BASE}/api/projects/${encodeURIComponent(project.name)}/exclude`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       );
       if (!res.ok) throw new Error('Errore');
-      // La card sparirà automaticamente via WebSocket broadcast
     } catch {
-      alert('Errore durante l\'esclusione del percorso');
       setIsExcluding(false);
     }
   };
@@ -144,7 +153,7 @@ export default function ProjectCard({ project, status }) {
     setLoadingTerminal(true);
     setTerminalWindows(null);
     try {
-      const res = await fetch(`http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/terminal-windows`);
+      const res = await fetch(`${API_BASE}/api/projects/${encodeURIComponent(project.name)}/terminal-windows`);
       const data = await res.json();
       setTerminalWindows(data.windows || []);
     } catch {
@@ -156,9 +165,10 @@ export default function ProjectCard({ project, status }) {
   const handleOpenTerminal = async () => {
     if (isOpeningTerminal) return;
     setIsOpeningTerminal(true);
+    setTerminalError(null);
     try {
       const res = await fetch(
-        `http://localhost:3001/api/projects/${encodeURIComponent(project.name)}/open-terminal`,
+        `${API_BASE}/api/projects/${encodeURIComponent(project.name)}/open-terminal`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       );
       if (!res.ok) {
@@ -166,7 +176,8 @@ export default function ProjectCard({ project, status }) {
         throw new Error(err.error || 'Errore');
       }
     } catch (e) {
-      alert(`Errore: ${e.message}`);
+      setTerminalError(e.message);
+      setTimeout(() => setTerminalError(null), 3000);
     } finally {
       setIsOpeningTerminal(false);
     }
@@ -190,22 +201,22 @@ export default function ProjectCard({ project, status }) {
           <button
             onClick={handleExclude}
             disabled={isExcluding}
-            title="Escludi questo percorso dal monitoraggio"
+            title={confirmExclude ? 'Clicca di nuovo per confermare' : 'Escludi questo percorso dal monitoraggio'}
             style={{
-              display: 'inline-flex', alignItems: 'center',
+              display: 'inline-flex', alignItems: 'center', gap: 4,
               padding: '3px 8px',
-              background: 'rgba(255,61,113,0.07)',
-              border: '1px solid rgba(255,61,113,0.25)',
-              color: 'rgba(255,61,113,0.6)',
+              background: confirmExclude ? 'rgba(255,61,113,0.2)' : 'rgba(255,61,113,0.07)',
+              border: `1px solid ${confirmExclude ? 'rgba(255,61,113,0.6)' : 'rgba(255,61,113,0.25)'}`,
+              color: confirmExclude ? 'var(--red)' : 'rgba(255,61,113,0.6)',
               borderRadius: 5,
               fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem',
               cursor: 'pointer',
-              transition: 'background 0.15s, color 0.15s',
+              transition: 'background 0.15s, color 0.15s, border-color 0.15s',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,61,113,0.14)'; e.currentTarget.style.color = 'var(--red)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,61,113,0.07)'; e.currentTarget.style.color = 'rgba(255,61,113,0.6)'; }}
+            onMouseEnter={e => { if (!confirmExclude) { e.currentTarget.style.background = 'rgba(255,61,113,0.14)'; e.currentTarget.style.color = 'var(--red)'; }}}
+            onMouseLeave={e => { if (!confirmExclude) { e.currentTarget.style.background = 'rgba(255,61,113,0.07)'; e.currentTarget.style.color = 'rgba(255,61,113,0.6)'; }}}
           >
-            {isExcluding ? <span className="spin" /> : '⊗'}
+            {isExcluding ? <span className="spin" /> : confirmExclude ? '⊗ sicuro?' : '⊗'}
           </button>
           <button
             onClick={handleOpenTerminal}
@@ -229,6 +240,16 @@ export default function ProjectCard({ project, status }) {
           </span>
         </div>
       </div>
+
+      {/* ── Errore terminale inline ─────────────────────── */}
+      {terminalError && (
+        <div style={{
+          fontFamily: 'JetBrains Mono, monospace', fontSize: '0.6rem',
+          color: 'var(--red)', marginTop: 4, marginBottom: -4
+        }}>
+          ✗ {terminalError}
+        </div>
+      )}
 
       {/* ── Path ────────────────────────────────────────── */}
       <p style={{
@@ -388,6 +409,12 @@ export default function ProjectCard({ project, status }) {
               : <><span>✓</span> SEGNA COME CONTROLLATO</>
             }
           </button>
+          {markError && (
+            <span style={{
+              fontFamily: 'JetBrains Mono, monospace', fontSize: '0.6rem',
+              color: 'var(--red)', marginLeft: 8
+            }}>✗ {markError}</span>
+          )}
         </div>
       )}
 

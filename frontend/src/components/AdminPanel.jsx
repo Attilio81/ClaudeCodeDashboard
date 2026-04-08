@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { API_BASE } from '../config.js';
 
-const API = 'http://localhost:3001/api/admin';
+const API = `${API_BASE}/api/admin`;
 
 function PathRow({ label, index, onDelete }) {
   const [deleting, setDeleting] = useState(false);

@@ -100,8 +100,28 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server });
 const clients = new Set();
 
+// ── Handler nuovo progetto rilevato dinamicamente ────────────
+function handleNewProjectDir(claudeDirName) {
+  const currentScanPaths = loadScanPaths();
+  const currentExcluded = loadExcludedPaths();
+  const discovered = discoverFromRoots(currentScanPaths, currentExcluded);
+
+  for (const project of discovered) {
+    const dirName = projectWatcher.projectPathToClaudeDirName(project.path);
+    if (dirName === claudeDirName) {
+      if (!config.projects.some(p => p.path.toLowerCase() === project.path.toLowerCase())) {
+        config.projects.push(project);
+        projectWatcher.addNewProject(project);
+        broadcastConfigUpdate();
+        console.log(`\n🆕 Nuovo progetto rilevato: ${project.name}`);
+      }
+      break;
+    }
+  }
+}
+
 // ── Watcher ──────────────────────────────────────────────────
-const projectWatcher = new ClaudeSessionWatcher(config.projects, broadcastStatus, broadcastConfigUpdate);
+const projectWatcher = new ClaudeSessionWatcher(config.projects, broadcastStatus, broadcastConfigUpdate, handleNewProjectDir);
 projectWatcher.start();
 
 // ── WebSocket ────────────────────────────────────────────────
@@ -162,6 +182,14 @@ app.post('/api/projects/:projectName/exclude', (req, res) => {
 
   projectWatcher.removeProject(projectName);
   config.projects = config.projects.filter(p => p.name !== projectName);
+
+  // Rimuovi PID salvato per questo progetto
+  const pids = loadTerminalPids();
+  if (pids[projectName] !== undefined) {
+    delete pids[projectName];
+    fs.writeFileSync(TERMINAL_PIDS_FILE, JSON.stringify(pids, null, 2));
+  }
+
   broadcastConfigUpdate();
 
   console.log(`🚫 ${projectName} (${project.path}) escluso`);
@@ -229,10 +257,16 @@ function readProjectSlug(projectPath) {
 }
 
 // ── API: Rilevamento finestra terminale ──────────────────────
+const pendingTerminalRequests = new Set();
+
 app.get('/api/projects/:projectName/terminal-windows', (req, res) => {
   const { projectName } = req.params;
   const project = config.projects.find(p => p.name === projectName);
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
+
+  if (pendingTerminalRequests.has(projectName)) {
+    return res.status(429).json({ windows: [], error: 'Ricerca già in corso' });
+  }
 
   // Leggi lo slug dalla sessione corrente per cercare nei titoli finestre
   const slug = readProjectSlug(project.path);
@@ -391,16 +425,38 @@ if ($results.Count -eq 0) {
 if ($results.Count -eq 0) { '[]' } else { $results | ConvertTo-Json -Depth 1 -Compress }
 `;
 
+  pendingTerminalRequests.add(projectName);
   runPsFile(psScript, 10000, (error, stdout, stderr) => {
+    pendingTerminalRequests.delete(projectName);
     if (error) {
       console.error('PS error:', error.message, stderr);
       return res.json({ windows: [], error: error.message });
     }
     try {
       const trimmed = stdout.trim();
-      if (!trimmed || trimmed === '[]') return res.json({ windows: [] });
+      if (!trimmed || trimmed === '[]') {
+        // PID salvato non trovato: processo morto, pulizia
+        if (savedPid > 0) {
+          const pids = loadTerminalPids();
+          if (pids[project.name] !== undefined) {
+            delete pids[project.name];
+            fs.writeFileSync(TERMINAL_PIDS_FILE, JSON.stringify(pids, null, 2));
+          }
+        }
+        return res.json({ windows: [] });
+      }
       const raw = JSON.parse(trimmed);
       const windows = Array.isArray(raw) ? raw : [raw];
+
+      // Se il PID salvato non è presente nei risultati come match 'dashboard', è morto
+      if (savedPid > 0 && !windows.some(w => w.pid === savedPid && w.match === 'dashboard')) {
+        const pids = loadTerminalPids();
+        if (pids[project.name] !== undefined) {
+          delete pids[project.name];
+          fs.writeFileSync(TERMINAL_PIDS_FILE, JSON.stringify(pids, null, 2));
+        }
+      }
+
       res.json({ windows });
     } catch {
       res.json({ windows: [] });
