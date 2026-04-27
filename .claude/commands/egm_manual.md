@@ -52,12 +52,12 @@ whoami
 
 **Passaggio 6 — Aggiungi wikilink cross-area**
 
-Controlla se esiste `{wikiPath}\Architettura\{cartella}\{modulo}\_overview.md`.
+Controlla se esiste `{wikiPath}\Architettura\{cartella}\{MODULO_UPPERCASE}\_manifest.md`.
 Se esiste, aggiungi nell'intestazione del file (dopo il titolo `#`):
 ```
-> Riferimento tecnico: [[Architettura/{cartella}/{modulo}/_overview]]
+> Riferimento tecnico: [[Architettura/{cartella}/{MODULO_UPPERCASE}/_manifest]]
 ```
-(Solo se non già presente.)
+(Solo se non già presente. `MODULO_UPPERCASE` = `modulo` in maiuscolo, es. `bneg0112` → `BNEG0112`.)
 
 **Passaggio 7 — Aggiorna index radice**
 

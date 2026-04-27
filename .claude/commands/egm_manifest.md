@@ -69,6 +69,9 @@ agent_sessions:
 
 Percorso: `{wikiPath}\Architettura\{cartella}\{modulo}\_manifest.md`
 
+Prima di scrivere, controlla se esiste `{wikiPath}\Manuali\{cartella}\{modulo_lowercase}.md`.
+Se esiste, includi la riga `> Manuale utente/installazione:` nell'header (vedi template sotto).
+
 ```markdown
 ---
 project: {MODULO}
@@ -78,6 +81,9 @@ annotated: {n annotati}/{n totali}
 ---
 
 # {MODULO} — Manifest
+
+> Manuale utente/installazione: [[Manuali/{cartella}/{modulo_lowercase}|✓]]
+(includi solo se il file manuale esiste)
 
 ## Dipendenze Cross-Modulo
 
