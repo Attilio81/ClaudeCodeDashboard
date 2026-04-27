@@ -28,19 +28,11 @@ Per ogni file, leggi brevemente e assegna:
 **MEDIUM** — form con UI ma logica minima, helper, extension
 **DEEP** — form o moduli con logica di business, query SQL, calcoli complessi
 
-**Passaggio 4 — Leggi il grafo per dipendenze cross-modulo**
-
-Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
-
-Estrai per il modulo corrente:
-- `used_by` = source dove `link.target == modulo` → chi chiama questo modulo
-- `depends_on` = target dove `link.source == modulo` → cosa chiama questo modulo
-
-**Passaggio 5 — Estrai pattern specifici da ogni file VB**
+**Passaggio 4 — Estrai pattern specifici da ogni file VB**
 
 Per ogni file VB, leggi con Read ed esegui:
 
-### 5a — Estrai `init_dlls` (da `Public Overloads Function Init`)
+### 4a — Estrai `init_dlls` (da `Public Overloads Function Init`)
 
 Trova il blocco `Public Overloads Function Init` → `End Function`.
 All'interno, trova le righe **non commentate** (non iniziano con `'`) che contengono `NTSIstanziaDll`.
@@ -51,7 +43,7 @@ Pattern: `NTSIstanziaDll(..., ..., "DLL_NAME", "CLASS_NAME", ...)`
 
 Raccogli coppie `DLL_NAME → CLASS_NAME`. Escludi auto-riferimenti (DLL_NAME == modulo).
 
-### 5b — Estrai `runchild` (da tutto il file)
+### 4b — Estrai `runchild` (da tutto il file)
 
 Trova righe **non commentate** contenenti `RunChild`.
 
@@ -61,7 +53,7 @@ Due pattern:
 
 Raccogli lista moduli BN* distinti. Escludi duplicati.
 
-**Passaggio 6 — Inietta header codedna: in ogni file VB**
+**Passaggio 5 — Inietta header codedna: in ogni file VB**
 
 **Se il file ha già un block `' codedna:`:** non toccare — salta il file.
 
@@ -71,8 +63,8 @@ Raccogli lista moduli BN* distinti. Escludi duplicati.
 ' ============================================================
 ' codedna:purpose    ⚠️ da compilare
 ' codedna:exports    ⚠️ da compilare
-' codedna:used_by    {lista da grafo — chi chiama questo modulo}
-' codedna:depends_on {lista da grafo — cosa chiama questo modulo}
+' codedna:used_by    — (esegui /egm_refresh per popolare)
+' codedna:depends_on — (esegui /egm_refresh per popolare)
 ' codedna:init_dlls  {DLL_NAME → CLASS_NAME | DLL_NAME → CLASS_NAME}
 ' codedna:runchild   {BNXX, BNXX, BNXX}
 ' codedna:rules      ⚠️ da compilare
@@ -82,7 +74,7 @@ Raccogli lista moduli BN* distinti. Escludi duplicati.
 
 Se `init_dlls` o `runchild` sono vuoti, scrivi `—` come valore.
 
-**Passaggio 7 — Rapporto**
+**Passaggio 6 — Rapporto**
 
 Comunica all'utente:
 - Modulo: `{MODULO}`
