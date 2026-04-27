@@ -82,27 +82,12 @@ Raccogli lista moduli BN* distinti. Escludi duplicati.
 
 Se `init_dlls` o `runchild` sono vuoti, scrivi `—` come valore.
 
-**Passaggio 7 — Crea o aggiorna CLAUDE.md**
+**Passaggio 7 — Scrivi CLAUDE.md**
 
-Controlla se esiste `CLAUDE.md` nella directory corrente.
-
-**Se non esiste:** crealo con questo contenuto:
+Crea (o sovrascrivi) `CLAUDE.md` nella directory corrente con questo contenuto:
 
 ```markdown
 # {MODULO}
-
-All'inizio di ogni sessione leggi `{MODULO}.egm` — contiene architettura,
-dipendenze (init_dlls, runchild, used_by) e regole di business del modulo.
-Esegui `/egm_manifest` se il file `.egm` non esiste ancora.
-```
-
-**Se esiste già:** controlla se contiene già un riferimento a `{MODULO}.egm`.
-- Trovato → non modificare.
-- Non trovato → aggiungi in fondo:
-
-```markdown
-
-## CodeDNA
 
 All'inizio di ogni sessione leggi `{MODULO}.egm` — contiene architettura,
 dipendenze (init_dlls, runchild, used_by) e regole di business del modulo.
@@ -119,5 +104,5 @@ Comunica all'utente:
 - File saltati (già annotati): N
 - File con `init_dlls` trovati: N (lista nomi)
 - File con `runchild` trovati: N (lista nomi)
-- CLAUDE.md: creato / aggiornato / già presente
+- CLAUDE.md: scritto
 - Prossimi passi: "Esegui /egm_manifest per generare la mappa .egm del modulo"
