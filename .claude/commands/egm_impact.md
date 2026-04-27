@@ -19,7 +19,7 @@ Se non specificato, usa il nome della directory corrente.
 
 **Passaggio 2 — Leggi il grafo**
 
-Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
+Leggi `C:\Progetti Pilota\DashboardClaudeCode\grafo\graph_data.json`.
 
 Costruisci due mappe dalla lista `links`:
 - `chiama[source]` = lista di target (cosa chiama ogni modulo)

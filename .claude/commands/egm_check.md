@@ -20,7 +20,7 @@ find . -type f -iname "*.vb" ! -iname "*.designer.vb" \
 
 **Passaggio 3 — Leggi grafo reale**
 
-Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
+Leggi `C:\Progetti Pilota\DashboardClaudeCode\grafo\graph_data.json`.
 
 Estrai per il modulo corrente:
 - `real_used_by` = tutti i source dove `link.target == modulo`
@@ -80,6 +80,6 @@ Data: {YYYY-MM-DD}
 
 **Regole:**
 - Non modificare mai file — solo leggere e riportare
-- Se graph_data.json non trovato: avvisa e suggerisci di eseguire `python "C:\Progetti Pilota\GrafoEgm\extract_connections.py"`
+- Se graph_data.json non trovato: avvisa e suggerisci di eseguire `python "C:\Progetti Pilota\DashboardClaudeCode\grafo\extract_connections.py"`
 - Considera stale solo se differenza > 0 moduli (aggiunte O rimozioni)
 - Considera OUTDATED_FORMAT se header esiste ma mancano uno o entrambi i campi `init_dlls` / `runchild`

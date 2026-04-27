@@ -15,14 +15,14 @@ Dal cwd corrente (esegui `pwd` se non lo conosci):
 **Passaggio 2 — Rigenera il grafo completo**
 
 ```bash
-python "C:\Progetti Pilota\GrafoEgm\extract_connections.py"
+python "C:\Progetti Pilota\DashboardClaudeCode\grafo\extract_connections.py"
 ```
 
-Riscrive `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
+Riscrive `C:\Progetti Pilota\DashboardClaudeCode\grafo\graph_data.json`.
 
 **Passaggio 3 — Leggi il grafo per dipendenze cross-modulo**
 
-Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
+Leggi `C:\Progetti Pilota\DashboardClaudeCode\grafo\graph_data.json`.
 
 Per il modulo corrente estrai:
 - `used_by` = source dove `link.target == modulo` → chi chiama questo modulo

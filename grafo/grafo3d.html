@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GrafoEGM — Connessioni Moduli BIZ2017</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a14; color: #e0e0e0; font-family: 'Segoe UI', monospace; overflow: hidden; }
+
+    #graph-container { width: 100vw; height: 100vh; position: relative; }
+
+    #panel {
+      position: fixed; top: 12px; left: 12px; z-index: 100;
+      background: rgba(10,10,24,0.88);
+      border: 1px solid #2a2a4a;
+      border-radius: 8px; padding: 14px 16px;
+      width: 300px; max-height: calc(100vh - 24px);
+      overflow-y: auto;
+      backdrop-filter: blur(4px);
+    }
+    #panel h1 { font-size: 14px; color: #7af; margin-bottom: 10px; letter-spacing: 0.5px; }
+
+    .section { margin-bottom: 12px; }
+    .section label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+
+    #search {
+      width: 100%; padding: 6px 8px; border-radius: 4px;
+      background: #151528; border: 1px solid #333; color: #ddd;
+      font-size: 12px;
+    }
+    #search:focus { outline: none; border-color: #5599ff; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 6px; }
+    .leg-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; cursor: pointer; padding: 2px 6px;
+      border-radius: 3px; border: 1px solid transparent;
+    }
+    .leg-item:hover { border-color: #444; }
+    .leg-item.disabled { opacity: 0.3; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    #stats { font-size: 11px; color: #666; }
+    #stats span { color: #aaa; }
+
+    #info-box {
+      position: fixed; bottom: 16px; left: 12px; z-index: 100;
+      background: rgba(10,10,24,0.92);
+      border: 1px solid #2a2a4a; border-radius: 6px;
+      padding: 10px 14px; width: 300px; max-height: 260px; overflow-y: auto;
+      display: none;
+    }
+    #info-box h2 { font-size: 13px; color: #7af; margin-bottom: 8px; }
+    #info-box .info-row { font-size: 11px; margin: 3px 0; }
+    #info-box .info-row .k { color: #888; }
+    #info-box .forms-list { font-size: 10px; color: #666; margin-top: 6px; max-height: 120px; overflow-y: auto; }
+    #info-box .forms-list div { padding: 1px 0; }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 6px; }
+    .btn {
+      padding: 4px 10px; border-radius: 4px; border: 1px solid #333;
+      background: #151528; color: #ccc; font-size: 11px; cursor: pointer;
+    }
+    .btn:hover { border-color: #5599ff; color: #7af; }
+    .btn.active { background: #1a2a4a; border-color: #5599ff; color: #7af; }
+
+    #loading {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #0a0a14; z-index: 999; color: #7af;
+    }
+    #loading .msg { font-size: 14px; margin-top: 12px; color: #888; }
+    .spinner {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid #222; border-top-color: #5599ff;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    input[type=range] { width: 100%; accent-color: #5599ff; }
+    .slider-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+    .slider-val { min-width: 24px; text-align: right; color: #aaa; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div class="msg">Caricamento grafo...</div>
+</div>
+
+<div id="graph-container"></div>
+
+<div id="panel">
+  <h1>GrafoEGM — BIZ2017</h1>
+
+  <div class="section">
+    <label>Cerca modulo</label>
+    <input type="text" id="search" placeholder="es. BNEG0012, BNRG..." />
+  </div>
+
+  <div class="section" id="stats">
+    Nodi: <span id="stat-nodes">—</span> &nbsp;|&nbsp;
+    Link: <span id="stat-links">—</span>
+  </div>
+
+  <div class="section">
+    <label>Filtro min. connessioni</label>
+    <div class="slider-row">
+      <input type="range" id="min-conn" min="0" max="20" value="0" step="1">
+      <span class="slider-val" id="min-conn-val">0</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <label>Legenda gruppi (click = toggle)</label>
+    <div class="legend" id="legend"></div>
+  </div>
+
+  <div class="section">
+    <label>Vista</label>
+    <div class="controls">
+      <button class="btn active" id="btn-3d">3D</button>
+      <button class="btn" id="btn-2d">2D</button>
+      <button class="btn" id="btn-reset">Reset cam</button>
+      <button class="btn" id="btn-dag">DAG flow</button>
+    </div>
+  </div>
+</div>
+
+<div id="info-box">
+  <h2 id="info-name"></h2>
+  <div id="info-content"></div>
+</div>
+
+<script src="https://unpkg.com/3d-force-graph@1.73.0/dist/3d-force-graph.min.js"></script>
+<script>
+const GROUP_COLORS = {
+  "BNEG":  "#4a9eff",
+  "BNRG":  "#50e090",
+  "BNBU":  "#ff9a40",
+  "BNOW":  "#ffdd44",
+  "OTHER": "#cc88ff"
+};
+
+const GROUP_LABELS = {
+  "BNEG":  "BNEG — Moduli EG",
+  "BNRG":  "BNRG — Moduli RG",
+  "BNBU":  "BNBU — Moduli BU",
+  "BNOW":  "BNOW — Moduli OW",
+  "OTHER": "Altro / Ext"
+};
+
+let graphData = null;
+let graph = null;
+let highlightNodes = new Set();
+let highlightLinks = new Set();
+let hoverNode = null;
+let selectedNode = null;
+let hiddenGroups = new Set();
+let minConn = 0;
+let is3D = true;
+let isDag = false;
+
+function nodeColor(node) {
+  const base = GROUP_COLORS[node.group] || "#aaa";
+  if (hiddenGroups.has(node.group)) return "rgba(0,0,0,0)";
+  if (highlightNodes.size > 0) {
+    return highlightNodes.has(node.id)
+      ? base
+      : "rgba(80,80,100,0.2)";
+  }
+  return base;
+}
+
+function linkColor(link) {
+  if (highlightLinks.size > 0) {
+    return highlightLinks.has(link) ? "#ffcc44" : "rgba(80,80,100,0.08)";
+  }
+  return "rgba(120,140,200,0.25)";
+}
+
+function linkWidth(link) {
+  return highlightLinks.has(link) ? 2 : 0.5;
+}
+
+function filterData(raw) {
+  // Compute degree
+  const degree = {};
+  raw.nodes.forEach(n => { degree[n.id] = 0; });
+  raw.links.forEach(l => {
+    degree[l.source] = (degree[l.source] || 0) + 1;
+    degree[l.target] = (degree[l.target] || 0) + 1;
+  });
+
+  const visibleNodes = new Set(
+    raw.nodes
+      .filter(n => !hiddenGroups.has(n.group) && (degree[n.id] || 0) >= minConn)
+      .map(n => n.id)
+  );
+
+  const nodes = raw.nodes.filter(n => visibleNodes.has(n.id));
+  const links = raw.links.filter(l => visibleNodes.has(l.source) && visibleNodes.has(l.target));
+
+  document.getElementById("stat-nodes").textContent = nodes.length;
+  document.getElementById("stat-links").textContent = links.length;
+
+  return { nodes, links };
+}
+
+function buildGraph(container, raw) {
+  const data = filterData(raw);
+
+  if (graph) graph._destructor?.();
+
+  const G = ForceGraph3D;
+  graph = G()(container)
+    .graphData(data)
+    .nodeId("id")
+    .nodeLabel(n => `<span style="color:#7af;font-size:13px">${n.name}</span>`)
+    .nodeColor(nodeColor)
+    .nodeVal(n => Math.max(1, Math.sqrt(n.val || 1)) * 1.5)
+    .nodeOpacity(0.9)
+    .linkColor(linkColor)
+    .linkWidth(linkWidth)
+    .linkDirectionalArrowLength(3)
+    .linkDirectionalArrowRelPos(1)
+    .linkDirectionalArrowColor(() => "rgba(255,200,60,0.6)")
+    .linkDirectionalParticles(l => highlightLinks.has(l) ? 3 : 0)
+    .linkDirectionalParticleWidth(2)
+    .backgroundColor("#0a0a14")
+    .onNodeHover(node => {
+      if (!node && !selectedNode) {
+        highlightNodes.clear();
+        highlightLinks.clear();
+        hoverNode = null;
+        graph.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+        return;
+      }
+      if (selectedNode) return;
+      hoverNode = node;
+      updateHighlight(node, graph._graphData ? graph._graphData() : data);
+    })
+    .onNodeClick(node => {
+      if (selectedNode && selectedNode.id === node.id) {
+        selectedNode = null;
+        highlightNodes.clear();
+        highlightLinks.clear();
+        graph.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+        document.getElementById("info-box").style.display = "none";
+      } else {
+        selectedNode = node;
+        const gd = graph._graphData ? graph._graphData() : data;
+        updateHighlight(node, gd);
+        showInfo(node, gd);
+        graph.cameraPosition(
+          { x: node.x + 60, y: node.y + 40, z: node.z + 60 },
+          node, 600
+        );
+      }
+    })
+    .onBackgroundClick(() => {
+      selectedNode = null;
+      highlightNodes.clear();
+      highlightLinks.clear();
+      hoverNode = null;
+      graph.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+      document.getElementById("info-box").style.display = "none";
+    });
+
+  if (isDag) {
+    graph.dagMode("td").dagLevelDistance(40);
+  } else {
+    graph.dagMode(null);
+  }
+
+  return graph;
+}
+
+function updateHighlight(node, data) {
+  highlightNodes.clear();
+  highlightLinks.clear();
+  if (!node) {
+    graph.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+    return;
+  }
+  highlightNodes.add(node.id);
+  data.links.forEach(l => {
+    const sid = typeof l.source === "object" ? l.source.id : l.source;
+    const tid = typeof l.target === "object" ? l.target.id : l.target;
+    if (sid === node.id || tid === node.id) {
+      highlightLinks.add(l);
+      highlightNodes.add(sid);
+      highlightNodes.add(tid);
+    }
+  });
+  graph.nodeColor(nodeColor).linkColor(linkColor).linkWidth(linkWidth);
+}
+
+function showInfo(node, data) {
+  const box = document.getElementById("info-box");
+  document.getElementById("info-name").textContent = node.name;
+
+  const outLinks = data.links.filter(l => {
+    const sid = typeof l.source === "object" ? l.source.id : l.source;
+    return sid === node.id;
+  });
+  const inLinks = data.links.filter(l => {
+    const tid = typeof l.target === "object" ? l.target.id : l.target;
+    return tid === node.id;
+  });
+
+  const outNodes = [...new Set(outLinks.map(l => typeof l.target === "object" ? l.target.id : l.target))];
+  const inNodes = [...new Set(inLinks.map(l => typeof l.source === "object" ? l.source.id : l.source))];
+
+  let html = `
+    <div class="info-row"><span class="k">Gruppo:</span> ${node.group}</div>
+    <div class="info-row"><span class="k">Form VB:</span> ${node.val || 0}</div>
+    <div class="info-row"><span class="k">In (chi usa):</span> ${inNodes.length}</div>
+    <div class="info-row"><span class="k">Out (usa):</span> ${outNodes.length}</div>
+  `;
+
+  if (outNodes.length > 0) {
+    html += `<div class="info-row" style="margin-top:6px;color:#888">Usa →</div>
+      <div class="forms-list">${outNodes.sort().map(n => `<div style="color:#4a9eff">${n}</div>`).join("")}</div>`;
+  }
+  if (inNodes.length > 0) {
+    html += `<div class="info-row" style="margin-top:6px;color:#888">← Usato da</div>
+      <div class="forms-list">${inNodes.sort().map(n => `<div style="color:#50e090">${n}</div>`).join("")}</div>`;
+  }
+  if (node.forms && node.forms.length > 0) {
+    html += `<div class="info-row" style="margin-top:6px;color:#888">File VB:</div>
+      <div class="forms-list">${node.forms.slice(0,30).map(f => `<div>${f}</div>`).join("")}${node.forms.length > 30 ? `<div>... +${node.forms.length-30}</div>` : ""}</div>`;
+  }
+
+  document.getElementById("info-content").innerHTML = html;
+  box.style.display = "block";
+}
+
+function buildLegend() {
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "";
+  Object.entries(GROUP_COLORS).forEach(([grp, col]) => {
+    const item = document.createElement("div");
+    item.className = "leg-item";
+    item.dataset.group = grp;
+    item.innerHTML = `<div class="leg-dot" style="background:${col}"></div><span>${grp}</span>`;
+    item.addEventListener("click", () => {
+      if (hiddenGroups.has(grp)) {
+        hiddenGroups.delete(grp);
+        item.classList.remove("disabled");
+      } else {
+        hiddenGroups.add(grp);
+        item.classList.add("disabled");
+      }
+      refreshGraph();
+    });
+    legend.appendChild(item);
+  });
+}
+
+function refreshGraph() {
+  const container = document.getElementById("graph-container");
+  container.innerHTML = "";
+  buildGraph(container, graphData);
+}
+
+// Search
+let searchTimeout;
+document.getElementById("search").addEventListener("input", function() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => {
+    const val = this.value.trim().toUpperCase();
+    if (!val || !graphData) return;
+    const node = graphData.nodes.find(n => n.id.includes(val));
+    if (node && graph) {
+      const gd = graph._graphData ? graph._graphData() : { nodes: graphData.nodes, links: graphData.links };
+      selectedNode = node;
+      updateHighlight(node, gd);
+      showInfo(node, gd);
+    }
+  }, 300);
+});
+
+// Min connections slider
+document.getElementById("min-conn").addEventListener("input", function() {
+  minConn = parseInt(this.value);
+  document.getElementById("min-conn-val").textContent = minConn;
+  refreshGraph();
+});
+
+// Buttons
+document.getElementById("btn-reset").addEventListener("click", () => {
+  graph?.cameraPosition({ x: 0, y: 0, z: 600 }, { x: 0, y: 0, z: 0 }, 800);
+});
+
+document.getElementById("btn-dag").addEventListener("click", function() {
+  isDag = !isDag;
+  this.classList.toggle("active", isDag);
+  refreshGraph();
+});
+
+// Load data
+fetch("graph_data.json")
+  .then(r => r.json())
+  .then(raw => {
+    graphData = raw;
+    document.getElementById("loading").style.display = "none";
+    buildLegend();
+    const container = document.getElementById("graph-container");
+    buildGraph(container, graphData);
+  })
+  .catch(err => {
+    document.getElementById("loading").innerHTML = `<div style="color:#f44">Errore caricamento dati:<br>${err.message}<br><br>Avvia con un server HTTP locale.</div>`;
+  });
+</script>
+</body>
+</html>

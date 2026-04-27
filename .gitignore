@@ -40,6 +40,10 @@ backend/agentsview.db-shm
 backend/agentsview.db-wal
 backend/terminal-pids.json
 
+# Grafo — generated outputs (rebuilt by extract_connections.py + build_html.py)
+grafo/graph_data.json
+grafo/GrafoEGM.html
+
 # Runtime/generated files
 icona.png
 .superpowers/
