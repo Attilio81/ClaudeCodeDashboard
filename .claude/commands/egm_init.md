@@ -13,14 +13,23 @@ Inietta header `codedna:` nei file VB del modulo corrente. Zero wiki — solo an
 Dal cwd corrente (esegui `pwd` se non lo conosci):
 - `modulo` = ultimo componente uppercase (es. `BNEGAS09`)
 
-**Passaggio 2 — Scansiona file VB**
+**Passaggio 2 — Trova chi chiama questo modulo**
+
+```bash
+python "C:\Progetti Pilota\DashboardClaudeCode\grafo\find_callers.py" {MODULO}
+```
+
+Output: lista moduli separati da virgola, oppure `—` se nessuno.
+Salva il risultato come `used_by` da inserire nell'header.
+
+**Passaggio 3 — Scansiona file VB**
 
 ```bash
 find . -type f -iname "*.vb" ! -iname "*.designer.vb" \
   ! -path "*/.vs/*" ! -path "*/bin/*" ! -path "*/obj/*"
 ```
 
-**Passaggio 3 — Classifica file per profondità di analisi**
+**Passaggio 4 — Classifica file per profondità di analisi**
 
 Per ogni file, leggi brevemente e assegna:
 
@@ -28,11 +37,11 @@ Per ogni file, leggi brevemente e assegna:
 **MEDIUM** — form con UI ma logica minima, helper, extension
 **DEEP** — form o moduli con logica di business, query SQL, calcoli complessi
 
-**Passaggio 4 — Estrai pattern specifici da ogni file VB**
+**Passaggio 5 — Estrai pattern specifici da ogni file VB**
 
 Per ogni file VB, leggi con Read ed esegui:
 
-### 4a — Estrai `init_dlls` (da `Public Overloads Function Init`)
+### 5a — Estrai `init_dlls` (da `Public Overloads Function Init`)
 
 Trova il blocco `Public Overloads Function Init` → `End Function`.
 All'interno, trova le righe **non commentate** (non iniziano con `'`) che contengono `NTSIstanziaDll`.
@@ -43,7 +52,7 @@ Pattern: `NTSIstanziaDll(..., ..., "DLL_NAME", "CLASS_NAME", ...)`
 
 Raccogli coppie `DLL_NAME → CLASS_NAME`. Escludi auto-riferimenti (DLL_NAME == modulo).
 
-### 4b — Estrai `runchild` (da tutto il file)
+### 5b — Estrai `runchild` (da tutto il file)
 
 Trova righe **non commentate** contenenti `RunChild`.
 
@@ -53,7 +62,7 @@ Due pattern:
 
 Raccogli lista moduli BN* distinti. Escludi duplicati.
 
-**Passaggio 5 — Inietta header codedna: in ogni file VB**
+**Passaggio 6 — Inietta header codedna: in ogni file VB**
 
 **Se il file ha già un block `' codedna:`:** non toccare — salta il file.
 
@@ -63,7 +72,7 @@ Raccogli lista moduli BN* distinti. Escludi duplicati.
 ' ============================================================
 ' codedna:purpose    ⚠️ da compilare
 ' codedna:exports    ⚠️ da compilare
-' codedna:used_by    — (esegui /egm_refresh per popolare)
+' codedna:used_by    {lista da grafo — chi chiama questo modulo}
 ' codedna:init_dlls  {DLL_NAME → CLASS_NAME | DLL_NAME → CLASS_NAME}
 ' codedna:runchild   {BNXX, BNXX, BNXX}
 ' codedna:rules      ⚠️ da compilare
@@ -73,10 +82,11 @@ Raccogli lista moduli BN* distinti. Escludi duplicati.
 
 Se `init_dlls` o `runchild` sono vuoti, scrivi `—` come valore.
 
-**Passaggio 6 — Rapporto**
+**Passaggio 7 — Rapporto**
 
 Comunica all'utente:
 - Modulo: `{MODULO}`
+- used_by trovati dal grafo: lista (o "nessuno")
 - File scansionati: N
 - Header iniettati (nuovi): N
 - File saltati (già annotati): N

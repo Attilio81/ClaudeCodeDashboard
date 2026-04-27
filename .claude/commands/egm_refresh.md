@@ -12,20 +12,14 @@ Ricalcola le dipendenze del progetto BIZ2017 corrente via regex e aggiorna gli h
 Dal cwd corrente (esegui `pwd` se non lo conosci):
 - `modulo` = ultimo componente uppercase (es. `BNEGCM00`)
 
-**Passaggio 2 — Rigenera il grafo completo**
+**Passaggio 2 — Trova chi chiama questo modulo**
 
 ```bash
-python "C:\Progetti Pilota\DashboardClaudeCode\grafo\extract_connections.py"
+python "C:\Progetti Pilota\DashboardClaudeCode\grafo\find_callers.py" {modulo}
 ```
 
-Riscrive `C:\Progetti Pilota\DashboardClaudeCode\grafo\graph_data.json`.
-
-**Passaggio 3 — Leggi il grafo per dipendenze cross-modulo**
-
-Leggi `C:\Progetti Pilota\DashboardClaudeCode\grafo\graph_data.json`.
-
-Per il modulo corrente estrai:
-- `used_by` = source dove `link.target == modulo` → chi chiama questo modulo
+Output: lista moduli che chiamano questo via NTSIstanziaDll o RunChild.
+Salva il risultato come `used_by`.
 
 **Passaggio 4 — Trova i file VB nel modulo**
 
