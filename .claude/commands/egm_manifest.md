@@ -31,15 +31,9 @@ Per ogni file VB, leggi con Read e cerca il block `' codedna:`.
 Estrai campo per campo: `purpose`, `exports`, `used_by`, `depends_on`, `init_dlls`, `runchild`, `rules`, `agent`.
 Se il block non esiste per un file, segna `annotated: false`.
 
-**Passaggio 5 — Leggi grafo per dipendenze cross-modulo**
+**Passaggio 5 — Scrivi `.egm` nella root del modulo**
 
-Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
-
-Estrai per il modulo corrente:
-- `used_by` = source dove `link.target == modulo`
-- `depends_on` = target dove `link.source == modulo`
-
-**Passaggio 6 — Scrivi `.egm` nella root del modulo**
+I valori `used_by`, `init_dlls`, `runchild` vengono dai header codedna: già scritti nei file VB — nessuna lettura del grafo necessaria.
 
 Scrivi `{cwd}\.egm` (machine-readable per Claude):
 
@@ -133,5 +127,5 @@ Comunica:
 
 **Regole:**
 - Sovrascrive sempre entrambi i file (ricalcolati da zero)
-- Se graph_data.json non trovato: genera senza sezioni depends_on/used_by, avvisa utente
+- Se `codedna:used_by` è `—` in tutti i file: avvisa che serve `/egm_refresh` per popolare il campo
 - `.egm` non aggiungere commenti extra oltre l'intestazione
