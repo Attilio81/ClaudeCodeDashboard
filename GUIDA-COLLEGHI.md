@@ -177,7 +177,7 @@ Scrive in `Wiki-Egm\Manuali\BIZ2017\bneg0128.md`.
 
 ### Prima analisi di un nuovo modulo → `/egm_init` + `/egm_manifest`
 
-Per moduli **BIZ2017 (file VB)**:
+Per moduli **BIZ2017/BUSEXP (file VB)**:
 
 ```
 /egm_init
@@ -190,7 +190,7 @@ Per progetti **non-VB** (JS, TS, Python, C#, ecc.) usa invece:
 /codedna:init
 ```
 
-Il sistema CodeDNA supporta tutti i tipi di file — `/egm_init` è specifico per VB.
+Il sistema CodeDNA supporta tutti i tipi di file — `/egm_init` è specifico per VB (BIZ2017/BUSEXP).
 
 ---
 

@@ -132,13 +132,13 @@ Wiki-Egm/
 
 ### /egm_init, /egm_manifest, /egm_update
 
-`/egm_init` inietta header `codedna:` in tutti i file VB di un modulo BIZ2017 — nessuna wiki, solo annotazioni inline nel sorgente.
+`/egm_init` inietta header `codedna:` in tutti i file VB di un modulo BIZ2017/BUSEXP — nessuna wiki, solo annotazioni inline nel sorgente.
 
 `/egm_manifest` legge gli header `codedna:` esistenti e genera due output: un file `.egm` YAML nella root del modulo (per Claude) e un `_manifest.md` in `Architettura/` (per i colleghi).
 
 `/egm_update` è l'aggiornamento incrementale: rianalizza solo i file cambiati, propagando l'aggiornamento ai dipendenti tramite il campo `depends_on` nel frontmatter.
 
-> **Progetti non-VB (JS, TS, Python, C#, ecc.):** usa `/codedna:init` al posto di `/egm_init`. Il sistema CodeDNA supporta tutti i tipi di file — `/egm_init` è specifico per i moduli BIZ2017 in VB.
+> **Progetti non-VB (JS, TS, Python, C#, ecc.):** usa `/codedna:init` al posto di `/egm_init`. Il sistema CodeDNA supporta tutti i tipi di file — `/egm_init` è specifico per i moduli BIZ2017/BUSEXP in VB.
 
 Ogni pagina ha frontmatter YAML che alimenta il Graph View di Obsidian:
 
