@@ -50,11 +50,8 @@ Scrivi `{cwd}\.egm` (machine-readable per Claude):
 project: {MODULO}
 generated: {YYYY-MM-DD}
 
-depends_on:
-  - {MODULO1}
-
 used_by:
-  - {MODULO2}
+  - {MODULO1}
 
 files:
   {NomeFile.vb}:
@@ -92,8 +89,9 @@ annotated: {n annotati}/{n totali}
 
 | Direzione | Moduli |
 |-----------|--------|
-| **depends_on** (chiama) | {MODULO1}, {MODULO2} |
-| **used_by** (chiamato da) | {MODULO3}, {MODULO4} |
+| **used_by** (chiamato da) | {MODULO1}, {MODULO2} |
+| **init_dlls** (DLL istanziate) | {vedi tabella file} |
+| **runchild** (moduli lanciati) | {vedi tabella file} |
 
 ## File del Modulo
 

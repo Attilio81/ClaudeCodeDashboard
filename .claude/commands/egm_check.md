@@ -23,7 +23,6 @@ find . -type f -iname "*.vb" ! -iname "*.designer.vb" \
 Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
 
 Estrai per il modulo corrente:
-- `real_depends_on` = tutti i target dove `link.source == modulo`
 - `real_used_by` = tutti i source dove `link.target == modulo`
 
 **Passaggio 4 — Analizza ogni file VB**
@@ -33,7 +32,6 @@ Per ogni file, leggi con Read e controlla:
 **A) Header mancante** — nessun block `' codedna:` trovato → categoria `MISSING`
 
 **B) Header presente ma stale** — confronta:
-- `codedna:depends_on` nel file vs `real_depends_on` dal grafo
 - `codedna:used_by` nel file vs `real_used_by` dal grafo
 - Se differenza → categoria `STALE`
 
@@ -76,9 +74,8 @@ Data: {YYYY-MM-DD}
 - {nomefile.vb}: manca codedna:init_dlls, codedna:runchild
 → Esegui /egm_refresh per aggiornare al formato corrente
 
-## Dipendenze reali del modulo (da grafo)
-- depends_on: {lista}
-- used_by:    {lista}
+## Chi chiama questo modulo (da grafo)
+- used_by: {lista}
 ```
 
 **Regole:**

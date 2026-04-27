@@ -64,7 +64,6 @@ Raccogli lista moduli BN* distinti. Escludi duplicati.
 ' codedna:purpose    ⚠️ da compilare
 ' codedna:exports    ⚠️ da compilare
 ' codedna:used_by    — (esegui /egm_refresh per popolare)
-' codedna:depends_on — (esegui /egm_refresh per popolare)
 ' codedna:init_dlls  {DLL_NAME → CLASS_NAME | DLL_NAME → CLASS_NAME}
 ' codedna:runchild   {BNXX, BNXX, BNXX}
 ' codedna:rules      ⚠️ da compilare

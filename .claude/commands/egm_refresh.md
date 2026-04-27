@@ -26,7 +26,6 @@ Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
 
 Per il modulo corrente estrai:
 - `used_by` = source dove `link.target == modulo` → chi chiama questo modulo
-- `depends_on` = target dove `link.source == modulo` → cosa chiama questo modulo
 
 **Passaggio 4 — Trova i file VB nel modulo**
 
@@ -89,7 +88,6 @@ Per ogni file, cerca il block:
 ' codedna:purpose    ⚠️ da compilare
 ' codedna:exports    ⚠️ da compilare
 ' codedna:used_by    {lista da grafo — chi chiama questo modulo}
-' codedna:depends_on {lista da grafo — cosa chiama questo modulo}
 ' codedna:init_dlls  {DLL_NAME → CLASS_NAME | DLL_NAME → CLASS_NAME}
 ' codedna:runchild   {BNXX, BNXX, BNXX}
 ' codedna:rules      ⚠️ da compilare
@@ -98,8 +96,7 @@ Per ogni file, cerca il block:
 ```
 
 Campi aggiornati ad ogni refresh:
-- `codedna:used_by` — da graph_data.json
-- `codedna:depends_on` — da graph_data.json
+- `codedna:used_by` — da graph_data.json (chi chiama questo modulo dall'esterno)
 - `codedna:init_dlls` — da analisi regex `Public Overloads Function Init`
 - `codedna:runchild` — da analisi regex `RunChild` su tutto il file
 
