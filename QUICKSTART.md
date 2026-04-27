@@ -1,101 +1,110 @@
 # Quick Start Guide
 
-Guida rapida per avviare la Dashboard Claude Code in 5 minuti.
+Dashboard Claude Code in 5 minuti.
 
-## Step 1: Installazione Dipendenze
+## Prerequisiti
+
+- Node.js >= 18 (verifica: `node -v`)
+- Git
+
+## 1. Installazione
 
 ```bash
-# Da root
+git clone https://github.com/Attilio81/ClaudeCodeDashboard.git
+cd ClaudeCodeDashboard
 npm install
-
-# Backend
-cd backend
-npm install
-
-# Frontend
-cd ../frontend
-npm install
-cd ..
+cd backend && npm install
+cd ../frontend && npm install && cd ..
 ```
 
-## Step 2: Configurazione Progetti
+## 2. Configura le cartelle di lavoro
 
-Modifica `backend/config.json` con i tuoi progetti:
+Apri `backend/scan-paths.json` e inserisci le cartelle radice dei tuoi progetti:
 
 ```json
-{
-  "projects": [
-    {
-      "name": "MioProgetto",
-      "path": "C:\\Path\\Al\\Progetto"
-    }
-  ]
-}
+["C:\\BIZ2017", "C:\\ProgettiEgm", "C:\\BUSEXP"]
 ```
 
-**Nota**: Usa doppio backslash `\\` per i path Windows!
+## 3. (Opzionale) Telegram
 
-## Step 3: Avvio Dashboard
+```bash
+cp backend/.env.example backend/.env
+# Modifica con TELEGRAM_TOKEN e TELEGRAM_CHAT_ID
+# Chiedi i valori ad Attilio Pregnolato
+```
+
+## 4. Avvia
 
 ```bash
 npm run dev
+# oppure doppio click su start.bat
 ```
 
-Questo avvia:
-- Backend: http://localhost:3001
-- Frontend: http://localhost:5173 (si apre automaticamente)
+Apri `http://localhost:5173`.
 
-## Step 4: Testing con Simulatore
-
-In un nuovo terminale, avvia il simulatore che modifica automaticamente i file status.json:
+## 5. Hook Claude Code (stato in tempo reale)
 
 ```bash
-npm run simulate
+mkdir -p ~/.claude/hooks
+
+cat > ~/.claude/hooks/hook-event.sh << 'EOF'
+#!/bin/bash
+INPUT=$(cat)
+curl -s -X POST "http://localhost:3001/api/hook-event" \
+  -H "Content-Type: application/json" \
+  -d "$INPUT" > /dev/null 2>&1 || true
+EOF
+
+chmod +x ~/.claude/hooks/hook-event.sh
 ```
 
-Il simulatore aggiorna lo status di tutti i progetti ogni 5 secondi con dati casuali.
-
-## Struttura File Status
-
-Ogni progetto deve avere un file `.claude/status.json`:
+Aggiungi in `~/.claude/settings.json` (nella sezione `hooks`):
 
 ```json
 {
-  "status": "active",
-  "lastUpdate": "2025-01-22T10:30:00Z",
-  "lastOutput": "Building component...",
-  "project": "MioProgetto"
+  "hooks": {
+    "Stop":        [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
+    "PreToolUse":  [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
+    "Notification":[{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }]
+  }
 }
 ```
 
-## Comandi Utili
+> Sostituisci `<username>` con il tuo nome utente Windows (es. `mario.rossi.EGMSISTEMI`).
 
-| Comando | Descrizione |
-|---------|-------------|
-| `npm run dev` | Avvia backend + frontend |
-| `npm run dev:backend` | Solo backend |
-| `npm run dev:frontend` | Solo frontend |
-| `npm run simulate` | Simulatore attività |
-| `npm run build` | Build produzione |
+## 6. Wiki condivisa (comandi egm_*)
 
-## Troubleshooting Rapido
+Crea `~/.claude/wiki-config.json`:
 
-### "Cannot find module"
-```bash
-# Reinstalla dipendenze
-npm install && cd backend && npm install && cd ../frontend && npm install
+```json
+{ "wikiPath": "\\\\egmsql\\EGMStruttura\\Wiki-Egm" }
 ```
 
-### Porta 3001 occupata
-Modifica `PORT` in `backend/server.js`
+Copia i comandi nella tua home Claude Code:
 
-### Frontend non si connette
-Verifica che il backend sia in esecuzione su http://localhost:3001
+```bash
+cp .claude/commands/egm_*.md ~/.claude/commands/
+```
 
-## Prossimi Passi
+## Comandi npm
 
-1. Personalizza `backend/config.json` con i tuoi progetti reali
-2. Il backend crea automaticamente i file `.claude/status.json` se mancanti
-3. Integra con le tue sessioni Claude Code reali
+| Comando | Azione |
+|---------|--------|
+| `npm run dev` | Avvia backend + frontend |
+| `npm run dev:backend` | Solo backend (porta 3001) |
+| `npm run dev:frontend` | Solo frontend (porta 5173) |
+| `npm run build` | Build produzione |
 
-Vedi [README.md](README.md) per documentazione completa.
+## Troubleshooting rapido
+
+**Porta 3001 in uso:**
+```powershell
+taskkill /f /im node.exe
+```
+
+**Progetto non rilevato:** verifica `backend/scan-paths.json`, poi usa **Riscansiona** dal pannello Admin.
+
+**Hook non funzionano:** apri `http://localhost:3001/api/health` — se non risponde, backend non è avviato.
+
+Vedi [README.md](README.md) per documentazione completa e [GUIDA-COLLEGHI.md](GUIDA-COLLEGHI.md) per il setup completo.

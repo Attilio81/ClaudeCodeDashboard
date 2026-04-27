@@ -70,7 +70,7 @@ Pannello accessibile con **⚙ ADMIN** nell'header:
 
 ## Knowledge Base
 
-La dashboard si integra con un sistema di documentazione tecnica basato su **5 slash command Claude Code** che scrivono direttamente in un vault Obsidian condiviso — senza LLM esterni, senza backend, senza API key aggiuntive.
+La dashboard si integra con un sistema di documentazione tecnica basato su **slash command Claude Code** che scrivono direttamente in un vault Obsidian condiviso — senza LLM esterni, senza backend, senza API key aggiuntive.
 
 ### Il Problema
 
@@ -82,11 +82,15 @@ Col tempo si accumulano centinaia di sessioni che contengono decisioni architett
 
 | Comando | Quando usarlo | Area wiki |
 |---------|--------------|-----------|
-| `/analizzacodebase` | Prima analisi di un progetto / dopo refactor grosso | `Architettura/` |
-| `/aggiornacodebase` | Dopo modifiche puntuali al codice | `Architettura/` |
-| `/aggiornawiki <nota>` | Dopo ogni sessione significativa (bug fix, feature, decisione) | `Sessioni/` |
-| `/aggiornamanuale <nota>` | Quando cambia come si usa il software | `Manuali/` |
-| `/aggiornarilasci <versione>` | Prima o dopo un deploy | `Rilasci/` |
+| `/egm_init` | Prima volta su un modulo — inietta header `codedna:` nei file VB | inline |
+| `/egm_manifest` | Dopo `/egm_init` — genera mappa codedna leggibile da Claude e dai colleghi | `Architettura/` |
+| `/egm_update` | Dopo modifiche puntuali al codice | `Architettura/` |
+| `/egm_session <nota>` | Dopo ogni sessione significativa (bug fix, feature, decisione) | `Sessioni/` |
+| `/egm_manual <nota>` | Quando cambia come si usa il software | `Manuali/` |
+| `/egm_release <versione>` | Prima o dopo un deploy | `Rilasci/` |
+| `/egm_check` | Verifica copertura annotazioni codedna | — |
+| `/egm_impact` | Prima di modificare un modulo — analisi catena dipendenze | — |
+| `/egm_refresh` | Dopo aver aggiunto chiamate a nuovi moduli | inline |
 
 Claude scrive direttamente nella wiki usando i suoi tool — nessuna chiamata a provider LLM esterni.
 
@@ -126,11 +130,15 @@ Wiki-Egm/
 | bneg0112 | [[.../overview\|✓]] | [[...\|✓]] | — | [[...\|v1.5]] |
 ```
 
-### /analizzacodebase e /aggiornacodebase
+### /egm_init, /egm_manifest, /egm_update
 
-`/analizzacodebase` scansiona tutti i file sorgente del progetto corrente (`.vb`, `.cs`, `.js`, `.ts`, `.py`, ecc.) e genera un documento per file in `Architettura/` con layer architetturale, dipendenze e funzioni chiave.
+`/egm_init` inietta header `codedna:` in tutti i file VB di un modulo BIZ2017 — nessuna wiki, solo annotazioni inline nel sorgente.
 
-`/aggiornacodebase` è la versione incrementale: rianalizza solo i file cambiati dall'ultima analisi, propagando l'aggiornamento ai file che dipendono da quelli modificati tramite il campo `depends_on` nel frontmatter.
+`/egm_manifest` legge gli header `codedna:` esistenti e genera due output: un file `.egm` YAML nella root del modulo (per Claude) e un `_manifest.md` in `Architettura/` (per i colleghi).
+
+`/egm_update` è l'aggiornamento incrementale: rianalizza solo i file cambiati, propagando l'aggiornamento ai dipendenti tramite il campo `depends_on` nel frontmatter.
+
+> **Progetti non-VB (JS, TS, Python, C#, ecc.):** usa `/codedna:init` al posto di `/egm_init`. Il sistema CodeDNA supporta tutti i tipi di file — `/egm_init` è specifico per i moduli BIZ2017 in VB.
 
 Ogni pagina ha frontmatter YAML che alimenta il Graph View di Obsidian:
 
@@ -144,16 +152,20 @@ last_analyzed: 2026-04-24
 ---
 ```
 
-### /aggiornawiki
+### /egm_session, /egm_manual, /egm_release
 
-Log di sessione. Traccia cosa è stato fatto, perché, quali decisioni prese.
+`/egm_session` — log di sessione. Traccia cosa è stato fatto, perché, quali decisioni prese.
 
 ```
-/aggiornawiki ho corretto il calcolo delle commissioni in Ordini.vb,
+/egm_session ho corretto il calcolo delle commissioni in Ordini.vb,
 il problema era nel round finale
 ```
 
-Claude determina il file dalla directory corrente (`BIZ2017/bneg0112.md`), legge il file se esiste, aggiorna o crea la sezione, firma con data e utente.
+`/egm_manual` — manuale utente. Documenta come si usa il software, logiche visibili, workflow.
+
+`/egm_release` — nota di rilascio con DLL, modifiche DB, istruzioni installazione.
+
+Claude determina il file dalla directory corrente, legge il file se esiste, aggiorna o crea la sezione, firma con data e utente.
 
 ### Wiki Condivisa in Rete
 
@@ -167,7 +179,15 @@ Ogni collega che usa i comandi alimenta la stessa knowledge base. Nessun conflit
 
 ### Installazione Comandi
 
-Copiare i file da `.claude/commands/` della repo in `~/.claude/commands/` e creare `~/.claude/wiki-config.json` con il percorso wiki. Vedi `Manuale d'uso/` nel vault per le istruzioni complete.
+```bash
+# Copia tutti i comandi egm_* nella home Claude Code
+cp .claude/commands/egm_*.md ~/.claude/commands/
+
+# Crea la configurazione del percorso wiki
+echo '{ "wikiPath": "\\\\egmsql\\EGMStruttura\\Wiki-Egm" }' > ~/.claude/wiki-config.json
+```
+
+Vedi [GUIDA-COLLEGHI.md](GUIDA-COLLEGHI.md) per il setup completo.
 
 ---
 
