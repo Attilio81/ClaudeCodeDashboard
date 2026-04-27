@@ -1,4 +1,4 @@
-Controlla la copertura delle annotazioni codedna: nei file VB del modulo corrente. Trova file non annotati e `used_by` / `depends_on` stale rispetto al grafo reale.
+Controlla la copertura delle annotazioni codedna: nei file VB del modulo corrente. Trova file non annotati, campi stale rispetto al grafo reale, e campi mancanti. Read-only — non modifica mai nulla.
 
 ## Quando usarlo
 - Per sapere quali file mancano di documentazione inline
@@ -14,7 +14,8 @@ Dal cwd corrente: `modulo` = ultimo componente uppercase.
 **Passaggio 2 — Scansiona file VB**
 
 ```bash
-find . -type f -iname "*.vb" ! -iname "*.designer.vb"
+find . -type f -iname "*.vb" ! -iname "*.designer.vb" \
+  ! -path "*/.vs/*" ! -path "*/bin/*" ! -path "*/obj/*"
 ```
 
 **Passaggio 3 — Leggi grafo reale**
@@ -36,9 +37,11 @@ Per ogni file, leggi con Read e controlla:
 - `codedna:used_by` nel file vs `real_used_by` dal grafo
 - Se differenza → categoria `STALE`
 
-**C) Campi vuoti o `⚠️ da compilare`** — `purpose`, `exports`, `rules` non compilati → categoria `INCOMPLETE`
+**C) Campi vuoti o `⚠️ da compilare`** — uno o più tra `purpose`, `exports`, `rules` non compilati → categoria `INCOMPLETE`
 
-**D) OK** — tutto presente e allineato al grafo
+**D) Campi nuovi mancanti** — header presente ma manca `codedna:init_dlls` o `codedna:runchild` → categoria `OUTDATED_FORMAT`
+
+**E) OK** — tutto presente, allineato al grafo, tutti i campi compilati
 
 **Passaggio 5 — Output report**
 
@@ -53,21 +56,25 @@ Data: {YYYY-MM-DD}
 | ❌ Mancante | N |
 | ⚠️ Stale | N |
 | 🔶 Incompleto | N |
+| 🔧 Formato obsoleto | N |
 
 ## File mancanti di annotazione
 - {nomefile.vb}
-- ...
-→ Esegui /refreshcodebase per aggiungere header automatico
+→ Esegui /egm_init per aggiungere header automatico
 
 ## File con dipendenze stale
 - {nomefile.vb}
   - depends_on nel file: BNEGBASE, BNEGZOOM
   - depends_on reale:    BNEGBASE, BNEGZOOM, BNEG0007  ← manca
-→ Esegui /refreshcodebase per aggiornare
+→ Esegui /egm_refresh per aggiornare
 
 ## File con campi incompleti
 - {nomefile.vb}: purpose, rules non compilati
-→ Esegui /analizzacodebase per analisi completa LLM
+→ Compilare manualmente o con /egm_session
+
+## File con formato obsoleto (manca init_dlls/runchild)
+- {nomefile.vb}: manca codedna:init_dlls, codedna:runchild
+→ Esegui /egm_refresh per aggiornare al formato corrente
 
 ## Dipendenze reali del modulo (da grafo)
 - depends_on: {lista}
@@ -78,3 +85,4 @@ Data: {YYYY-MM-DD}
 - Non modificare mai file — solo leggere e riportare
 - Se graph_data.json non trovato: avvisa e suggerisci di eseguire `python "C:\Progetti Pilota\GrafoEgm\extract_connections.py"`
 - Considera stale solo se differenza > 0 moduli (aggiunte O rimozioni)
+- Considera OUTDATED_FORMAT se header esiste ma mancano uno o entrambi i campi `init_dlls` / `runchild`

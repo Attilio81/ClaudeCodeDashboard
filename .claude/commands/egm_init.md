@@ -1,224 +1,131 @@
-Devi analizzare l'architettura del progetto corrente e generare documentazione tecnica nella wiki Obsidian.
+Inietta header `codedna:` nei file VB del modulo corrente e genera un `_overview.md` nella wiki. Zero pagine wiki per-file — solo annotazioni inline nel sorgente.
 
 ## Quando usarlo
-- Prima volta su un progetto: genera la mappa completa
-- Dopo un refactor significativo: rigenera tutto da zero
-- NON usare per aggiornamenti incrementali → usa /aggiornawiki
-
-**ATTENZIONE:** questo comando rigenera l'intera cartella `Architettura/{cartella}/{modulo}/`. I file esistenti per quel modulo vengono sovrascritti. Moduli diversi nella stessa cartella non si toccano.
+- Prima volta su un modulo BIZ2017: crea header codedna in tutti i file VB
+- Per aggiungere header mancanti senza toccare quelli esistenti
+- NON scrive pagine wiki individuali per file → usa /egm_session per la documentazione estesa
+- NON aggiorna dipendenze già esistenti → usa /egm_refresh
 
 ---
 
-**Passaggio 1 — Recupera il percorso wiki**
+**Passaggio 1 — Identifica il modulo**
 
-Leggi il file:
-`C:\Users\attilio.pregnolato.EGMSISTEMI\.claude\wiki-config.json`
-
-Estrai il campo `wikiPath`.
-
-**Passaggio 2 — Identifica il progetto**
-
-Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
+Dal cwd corrente (esegui `pwd` se non lo conosci):
 - Normalizza il path: `/c/BIZ2017/BNEG0112` → `C:\BIZ2017\BNEG0112`
 - `cartella` = penultimo componente (es. `BIZ2017`)
-- `modulo` = ultimo componente lowercase (es. `bneg0112`)
-- Directory radice da analizzare = cwd completo
+- `modulo` = ultimo componente uppercase (es. `BNEG0112`)
 
-**Passaggio 3 — Scansiona i file sorgente**
+**Passaggio 2 — Recupera il percorso wiki**
 
-Elenca i file sorgente nella directory corrente (ricorsivo):
+Leggi `C:\Users\attilio.pregnolato.EGMSISTEMI\.claude\wiki-config.json`, estrai `wikiPath`.
+
+**Passaggio 3 — Scansiona file VB**
+
 ```bash
-find . -type f \( -iname "*.js" -o -iname "*.ts" -o -iname "*.jsx" -o -iname "*.tsx" -o -iname "*.py" -o -iname "*.cs" -o -iname "*.vb" \) \
-  ! -path "*/node_modules/*" \
-  ! -path "*/dist/*" \
-  ! -path "*/build/*" \
-  ! -path "*/vendor/*" \
-  ! -path "*/.git/*" \
-  ! -path "*/.vs/*" \
-  ! -path "*/bin/*" \
-  ! -path "*/obj/*"
+find . -type f -iname "*.vb" ! -iname "*.designer.vb" \
+  ! -path "*/.vs/*" ! -path "*/bin/*" ! -path "*/obj/*"
 ```
 
-**Passaggio 4 — Classifica i file per profondità di analisi**
+**Passaggio 4 — Classifica file per profondità di analisi**
 
-Assegna ogni file a uno dei tre livelli in base al suo percorso. Se il percorso non è classificabile con certezza, leggi brevemente il file e decidi in base al contenuto.
+Per ogni file, leggi brevemente e assegna:
 
-**COMPACT** — file raggruppati in una pagina unica per categoria, nessuna pagina individuale:
-- C#: path contiene `Models/`, `Entities/`, `DTOs/`, `Dto/`, `ViewModels/`, `Requests/`, `Responses/`
-- Python: path contiene `schemas/`, `models/` (se Pydantic/SQLAlchemy)
-- TypeScript: path contiene `types/`, `interfaces/`, `models/`
-- VB.NET: classi con sole proprietà, senza logica
-- Regola contenuto: se il file ha solo proprietà/campi e nessun metodo con logica reale → COMPACT
+**COMPACT** — classi con sole proprietà, nessun metodo con logica reale
+**MEDIUM** — form con UI ma logica minima, helper, extension
+**DEEP** — form o moduli con logica di business, query SQL, calcoli complessi
 
-**MEDIUM** — una pagina per file, analisi concisa (elenco endpoint/componenti, no logica interna):
-- C#: path contiene `Controllers/`, `Common/`, `Extensions/`, `Helpers/`
-- React/TS: path contiene `components/`, `pages/`
-- Python: path contiene `routes/`, `views/`
-- VB.NET: form con UI ma logica minima
+**Passaggio 5 — Leggi il grafo per dipendenze cross-modulo**
 
-**DEEP** — una pagina per file, analisi completa con logica, query, dipendenze:
-- C#: path contiene `Services/`, `Middleware/`, `Filters/`, `Handlers/`, `Managers/`; oppure file radice (`Program.cs`, `Startup.cs`, `ConnectionManager.cs`)
-- Python: path contiene `services/`, `logic/`, `tasks/`, `business/`
-- React/TS: path contiene `hooks/`, `context/`, `store/`, `reducers/`
-- VB.NET: form o moduli con logica di business, query SQL, calcoli
+Leggi `C:\Progetti Pilota\GrafoEgm\graph_data.json`.
 
-Produci un riepilogo interno prima di proseguire:
-```
-COMPACT ({n} file) → _models.md, _dtos.md, _utility.md [raggruppati]
-MEDIUM  ({n} file) → ArticoliController.md, OrdiniController.md, ...
-DEEP    ({n} file) → ArticoloService.md, Program.md, Middleware.md, ...
-```
+Estrai per il modulo corrente:
+- `used_by` = source dove `link.target == modulo` → chi chiama questo modulo
+- `depends_on` = target dove `link.source == modulo` → cosa chiama questo modulo
 
-**Passaggio 5 — Analizza e scrivi le pagine Architettura**
+**Passaggio 6 — Estrai pattern specifici da ogni file VB**
 
-Percorso base: `{wikiPath}\Architettura\{cartella}\{modulo}\`
+Per ogni file VB che sarà annotato, leggi con Read ed esegui:
 
----
+### 6a — Estrai `init_dlls` (da `Public Overloads Function Init`)
 
-### Modalità COMPACT
+Trova il blocco `Public Overloads Function Init` → `End Function`.
+All'interno, trova le righe **non commentate** (non iniziano con `'`) che contengono `NTSIstanziaDll`.
 
-Leggi tutti i file COMPACT velocemente. Raggruppa per tipo in pagine riassuntive:
+Pattern: `NTSIstanziaDll(..., ..., "DLL_NAME", "CLASS_NAME", ...)`
+- arg3 = DLL_NAME (3° stringa quoted)
+- arg4 = CLASS_NAME (4° stringa quoted)
 
-- `_models.md` — classi dati/entità/DTO
-- `_utility.md` — helper, extension methods, common
+Raccogli coppie `DLL_NAME → CLASS_NAME`. Escludi auto-riferimenti (DLL_NAME == modulo).
 
-Formato per ogni pagina COMPACT:
+### 6b — Estrai `runchild` (da tutto il file)
 
-````markdown
----
-layer: data
-last_analyzed: {YYYY-MM-DD}
----
+Trova righe **non commentate** contenenti `RunChild`.
 
-# Modelli — {modulo}
+Due pattern:
+1. `RunChild("NTSInformatica", "FRM...", ..., "BN...", ...)` → 6° argomento stringa = modulo BN*
+2. `RunChild("BS...", "CLS...", ...)` → 1° argomento stringa (se inizia con `BS` o `BN`)
 
-| Classe | File | Proprietà principali |
-|--------|------|---------------------|
-| `{NomeClasse}` | `{file.cs}` | {prop1}, {prop2}, {prop3} |
-````
+Raccogli lista moduli BN* distinti. Escludi duplicati.
 
----
+**Passaggio 7 — Inietta header codedna: in ogni file VB**
 
-### Modalità MEDIUM
+**Se il file ha già un block `' codedna:`:** non toccare — salta il file.
 
-Per ogni file MEDIUM, scrivi `{nome-file}.md`:
+**Se il file NON ha header:** aggiungi in cima al file (prima di `Imports` o prima della prima riga di codice):
 
-````markdown
----
-layer: api
-depends_on:
-  - {ServiceChiamato}
-last_analyzed: {YYYY-MM-DD}
----
-
-# {NomeController / NomeComponent}
-
-## Endpoint / Responsabilità
-
-| Metodo | Route / Prop | Descrizione | Chiama |
-|--------|-------------|-------------|--------|
-| `GET` | `/api/v1/...` | {cosa fa} | `{Service}.{Metodo}` |
-
-## Note
-
-{Solo se c'è qualcosa di non ovvio: filtri, autorizzazioni, comportamenti speciali}
-````
-
----
-
-### Modalità DEEP
-
-Per ogni file DEEP, scrivi `{nome-file}.md`:
-
-````markdown
----
-layer: {service|middleware|infrastructure}
-depends_on:
-  - {dipendenza1}
-  - {dipendenza2}
-last_analyzed: {YYYY-MM-DD}
----
-
-# {NomeFile}
-
-## Scopo
-
-{Cosa fa in 2-3 frasi}
-
-## Funzioni / Metodi Principali
-
-| Nome | Input | Output | Descrizione |
-|------|-------|--------|-------------|
-| `{Metodo}` | {params} | {return} | {cosa fa} |
-
-## Logica rilevante
-
-{Pattern usati, algoritmi, decisioni architetturali non ovvie}
-
-## Query SQL principali
-
-{Se presenti — incolla le query significative in blocco codice}
-
-## Dipendenze
-
-- `{file-o-modulo}` — {perché è usato}
-
-## Note
-
-{Vincoli, comportamenti non ovvi, ⚠️ da verificare: {dubbio} se ambiguo}
-````
-
----
-
-**Passaggio 6 — Scrivi l'overview**
-
-Scrivi `{wikiPath}\Architettura\{cartella}\{modulo}\_overview.md`:
-
-````markdown
----
-last_analyzed: {YYYY-MM-DD}
----
-
-# {modulo} — Architettura
-
-## Layer Diagram
-
-```
-[infrastructure] → Program.cs, ConnectionManager, Middleware
-[api]            → {controller1}, {controller2}
-[service]        → {service1}, {service2}
-[data]           → _models.md ({n} classi)
-[utility]        → _utility.md ({n} classi)
+```vb
+' ============================================================
+' codedna:purpose    ⚠️ da compilare
+' codedna:exports    ⚠️ da compilare
+' codedna:used_by    {lista da grafo — chi chiama questo modulo}
+' codedna:depends_on {lista da grafo — cosa chiama questo modulo}
+' codedna:init_dlls  {DLL_NAME → CLASS_NAME | DLL_NAME → CLASS_NAME}
+' codedna:runchild   {BNXX, BNXX, BNXX}
+' codedna:rules      ⚠️ da compilare
+' codedna:agent      claude-sonnet-4-6 | {YYYY-MM-DD} | "egm_init"
+' ============================================================
 ```
 
-## File analizzati
+Se `init_dlls` o `runchild` sono vuoti, scrivi `—` come valore.
 
-| File | Livello | Layer | Scopo |
-|------|---------|-------|-------|
-| [[_models]] | compact | data | {n} modelli/DTO |
-| [[{controller}]] | medium | api | {scopo} |
-| [[{service}]] | deep | service | {scopo} |
+**Passaggio 8 — Scrivi _overview.md nella wiki**
 
-## Dipendenze Principali
+Percorso: `{wikiPath}\Architettura\{cartella}\{modulo}\_overview.md`
 
-{Grafico testuale delle dipendenze più importanti tra i file DEEP}
-
-## Entry Points
-
-{Quali file sono i punti di ingresso del sistema}
-````
-
-**Passaggio 7 — Aggiungi wikilinks verso Sessioni/**
-
-Controlla se esistono file in `{wikiPath}\Sessioni\{cartella}\`.
-Se esistono, aggiungi nell'`_overview.md`:
 ```markdown
-## Sessioni di lavoro
+---
+last_analyzed: {YYYY-MM-DD}
+---
 
-- [[Sessioni/{cartella}/{modulo}]]
+# {MODULO} — Overview
+
+## Modulo
+
+| Campo | Valore |
+|-------|--------|
+| Cartella | {cartella} |
+| File VB | {n totale} |
+| Annotati ora | {n nuovi} |
+| Già annotati | {n skip} |
+
+## Dipendenze Cross-Modulo (da grafo BIZ2017)
+
+**depends_on:** {lista o "nessuna"}
+**used_by:** {lista o "nessuna"}
+
+## File del Modulo
+
+| File | Livello | Scopo (da compilare) |
+|------|---------|----------------------|
+| `{file.vb}` | COMPACT/MEDIUM/DEEP | ⚠️ da compilare |
+
+## Note
+
+Header codedna: iniettati da /egm_init in data {YYYY-MM-DD}.
+Compilare `purpose`, `exports`, `rules` in ogni file con /egm_session.
 ```
 
-**Passaggio 8 — Aggiorna index radice**
+**Passaggio 9 — Aggiorna index radice**
 
 Leggi `{wikiPath}\index.md`.
 
@@ -239,13 +146,18 @@ last_updated: {YYYY-MM-DD}
 
 **Se esiste**:
 1. Cerca `## {cartella}` — se manca, aggiungila con tabella
-2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
-3. Aggiorna colonna **Architettura**: sostituisci `—` con `[[Architettura/{cartella}/{modulo}/_overview|✓]]` (se già ha un link, lascia invariato)
+2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila
+3. Aggiorna colonna Architettura: `[[Architettura/{cartella}/{modulo}/_overview|✓]]`
 4. Aggiorna `last_updated: {YYYY-MM-DD}`
 
-**Regole:**
-- Naming convention stabile: nome wiki = nome file sorgente senza estensione. Non cambiare mai questo nome — i link da Sessioni/ dipendono da esso.
-- Le pagine COMPACT (`_models.md`, `_utility.md`) non compaiono nell'overview come link individuali — solo come riga aggregata.
-- Audience: sviluppatori tecnici
-- Conferma all'utente: quanti file per livello (compact/medium/deep), quante pagine wiki create, percorso overview.
-- **Accuratezza:** scrivi solo ciò che è esplicitamente leggibile nel codice. Se il comportamento di una funzione o dipendenza non è chiaro dalla lettura, chiedi all'utente prima di scrivere — non inventare. Se qualcosa rimane ambiguo dopo la risposta, segnalalo nella sezione Note con `⚠️ da verificare: {dubbio}`.
+**Passaggio 10 — Rapporto**
+
+Comunica all'utente:
+- Modulo: `{MODULO}`
+- File scansionati: N
+- Header iniettati (nuovi): N
+- File saltati (già annotati): N
+- File con `init_dlls` trovati: N (lista nomi)
+- File con `runchild` trovati: N (lista nomi)
+- Path _overview.md scritto
+- Prossimi passi: "Esegui /egm_session per compilare purpose/exports/rules"

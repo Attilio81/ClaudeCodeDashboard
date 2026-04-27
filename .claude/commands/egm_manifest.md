@@ -69,6 +69,8 @@ files:
     purpose: {valore codedna:purpose}
     exports: {valore codedna:exports}
     rules: {valore codedna:rules}
+    init_dlls: {valore codedna:init_dlls}
+    runchild: {valore codedna:runchild}
     last_agent: {valore codedna:agent}
   {AltroFile.vb}:
     annotated: false
