@@ -33,7 +33,10 @@ find . -type f \( -iname "*.js" -o -iname "*.ts" -o -iname "*.jsx" -o -iname "*.
   ! -path "*/dist/*" \
   ! -path "*/build/*" \
   ! -path "*/vendor/*" \
-  ! -path "*/.git/*"
+  ! -path "*/.git/*" \
+  ! -path "*/.vs/*" \
+  ! -path "*/bin/*" \
+  ! -path "*/obj/*"
 ```
 
 **Passaggio 4 — Classifica ogni file sorgente**
@@ -74,35 +77,73 @@ Ripeti finché la lista `da_analizzare` non si stabilizza (al massimo 2 iterazio
 
 **Passaggio 7 — Analizza i file in da_analizzare**
 
-Per ogni file in `da_analizzare`:
-1. Leggi il contenuto con Read
-2. Determina:
-   - **Cosa fa:** scopo del file in 1-2 frasi
-   - **Layer architetturale:** `api` | `service` | `data` | `ui` | `utility`
-   - **Dipendenze principali:** altri file o moduli da cui dipende
-   - **Funzioni/classi chiave:** lista delle entità principali esposte
-3. Scrivi/sovrascrivi `{wikiDir}\{nome-file}.md`:
+Prima di analizzare, classifica ogni file in `da_analizzare` per profondità:
+
+**COMPACT** — path contiene `Models/`, `Entities/`, `DTOs/`, `Dto/`, `ViewModels/`, `Requests/`, `Responses/`, `types/`, `interfaces/`, `schemas/`; oppure file con sole proprietà e nessuna logica → raggruppa in pagina `_models.md` esistente (aggiorna solo le righe dei file modificati)
+
+**MEDIUM** — path contiene `Controllers/`, `Common/`, `Extensions/`, `Helpers/`, `components/`, `pages/`, `routes/` → una pagina concisa per file
+
+**DEEP** — path contiene `Services/`, `Middleware/`, `Filters/`, `Handlers/`, `hooks/`, `context/`, `store/`; oppure file radice (`Program.cs`, `Startup.cs`, `ConnectionManager.cs`) → analisi completa
+
+Se path non classificabile, leggi brevemente e decidi da contenuto.
+
+---
+
+Per file **COMPACT**: aggiorna la riga corrispondente in `{wikiDir}\_models.md` (o `_utility.md`). Non creare pagine individuali.
+
+Per file **MEDIUM**, scrivi/sovrascrivi `{wikiDir}\{nome-file}.md`:
 
 ````markdown
 ---
-layer: {api|service|data|ui|utility}
+layer: api
+depends_on:
+  - {ServiceChiamato}
+last_analyzed: {YYYY-MM-DD}
+---
+
+# {NomeFile}
+
+## Endpoint / Responsabilità
+
+| Metodo | Route / Prop | Descrizione | Chiama |
+|--------|-------------|-------------|--------|
+| `GET` | `/api/v1/...` | {cosa fa} | `{Service}.{Metodo}` |
+
+## Note
+
+{Solo se c'è qualcosa di non ovvio}
+````
+
+Per file **DEEP**, scrivi/sovrascrivi `{wikiDir}\{nome-file}.md`:
+
+````markdown
+---
+layer: {service|middleware|infrastructure}
 depends_on:
   - {dipendenza1}
   - {dipendenza2}
 last_analyzed: {YYYY-MM-DD}
 ---
 
-# {nome-file}
+# {NomeFile}
 
 ## Scopo
 
 {Cosa fa in 2-3 frasi}
 
-## Funzioni / Classi Principali
+## Funzioni / Metodi Principali
 
-| Nome | Descrizione |
-|------|-------------|
-| `{nome}` | {cosa fa} |
+| Nome | Input | Output | Descrizione |
+|------|-------|--------|-------------|
+| `{Metodo}` | {params} | {return} | {cosa fa} |
+
+## Logica rilevante
+
+{Pattern usati, algoritmi, decisioni architetturali non ovvie}
+
+## Query SQL principali
+
+{Se presenti}
 
 ## Dipendenze
 
@@ -110,7 +151,7 @@ last_analyzed: {YYYY-MM-DD}
 
 ## Note
 
-{Eventuali dettagli rilevanti: pattern usati, vincoli, comportamenti non ovvi}
+{Vincoli, comportamenti non ovvi, ⚠️ da verificare: {dubbio} se ambiguo}
 ````
 
 **Passaggio 8 — Rigenera _overview.md**
