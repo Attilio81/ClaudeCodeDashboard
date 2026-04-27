@@ -78,7 +78,7 @@ Col tempo si accumulano centinaia di sessioni che contengono decisioni architett
 
 ### La Soluzione
 
-5 comandi slash, ognuno con uno scopo preciso:
+9 comandi slash, ognuno con uno scopo preciso:
 
 | Comando | Quando usarlo | Area wiki |
 |---------|--------------|-----------|
@@ -99,23 +99,23 @@ Claude scrive direttamente nella wiki usando i suoi tool — nessuna chiamata a 
 ```
 Wiki-Egm/
 ├── index.md                ← MOC aggiornato automaticamente da tutti i comandi
-├── Sessioni/               ← /aggiornawiki       (cosa è successo)
+├── Sessioni/               ← /egm_session        (cosa è successo)
 │   ├── BIZ2017/
 │   │   └── bneg0112.md
 │   └── ProgettiEgm/
 │       └── controllopadordini.md
 │
-├── Architettura/           ← /analizzacodebase, /aggiornacodebase  (com'è fatto il codice)
+├── Architettura/           ← /egm_init, /egm_manifest, /egm_update  (com'è fatto il codice)
 │   └── BIZ2017/
 │       └── bneg0112/
 │           ├── _overview.md
 │           └── BNEG0112.md
 │
-├── Manuali/                ← /aggiornamanuale    (come si usa — utenti finali)
+├── Manuali/                ← /egm_manual         (come si usa — utenti finali)
 │   └── BIZ2017/
 │       └── bneg0112.md
 │
-└── Rilasci/                ← /aggiornarilasci    (note di rilascio — IT/sviluppatori)
+└── Rilasci/                ← /egm_release        (note di rilascio — IT/sviluppatori)
     └── BIZ2017/
         └── bneg0112-v1.5.md
 ```
@@ -409,14 +409,18 @@ DashboardClaudeCode/
 │   └── package.json
 ├── .claude/
 │   └── commands/              # Slash command knowledge base (copiare in ~/.claude/commands/)
-│       ├── analizzacodebase.md
-│       ├── aggiornacodebase.md
-│       ├── aggiornawiki.md
-│       ├── aggiornamanuale.md
-│       └── aggiornarilasci.md
+│       ├── egm_init.md
+│       ├── egm_manifest.md
+│       ├── egm_update.md
+│       ├── egm_session.md
+│       ├── egm_manual.md
+│       ├── egm_release.md
+│       ├── egm_check.md
+│       ├── egm_impact.md
+│       └── egm_refresh.md
 ├── Modelli/
-│   ├── template_manuale_utente.md     # Template per /aggiornamanuale
-│   └── template_note_rilascio.md      # Template per /aggiornarilasci
+│   ├── template_manuale_utente.md     # Template per /egm_manual
+│   └── template_note_rilascio.md      # Template per /egm_release
 ├── start.bat                  # Avvio rapido Windows
 ├── package.json
 └── README.md
@@ -557,12 +561,12 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 </details>
 
 <details>
-<summary><b>I comandi /analizzacodebase o /aggiornawiki non trovano i file</b></summary>
+<summary><b>I comandi egm_* non trovano i file</b></summary>
 
 1. Verifica che `~/.claude/wiki-config.json` esista con `wikiPath` corretto
 2. Verifica che la share di rete sia accessibile: apri `\\egmsql\EGMStruttura\Wiki-Egm` da Esplora risorse
-3. Verifica che i file dei comandi siano in `~/.claude/commands/` (non solo nella repo)
-4. Consulta `Manuale d'uso/installazione` nel vault per le istruzioni complete
+3. Verifica che i file `egm_*.md` siano in `~/.claude/commands/` (non solo nella repo)
+4. Vedi [GUIDA-COLLEGHI.md](GUIDA-COLLEGHI.md) per le istruzioni complete
 
 </details>
 
@@ -572,15 +576,19 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 
 <small>
 
+**v8.1.0** (2026-04-27) — Comandi rinominati egm_*
+- `/egm_init`, `/egm_manifest`, `/egm_refresh`, `/egm_check`, `/egm_impact`: nuovi comandi codedna per BIZ2017
+- `/egm_session`, `/egm_manual`, `/egm_release`, `/egm_update`: rinominati dai vecchi `/aggiornawiki` ecc.
+- Documentazione aggiornata: GUIDA-COLLEGHI.md e QUICKSTART.md rispecchiano v8
+
 **v8.0.0** (2026-04-24) — Knowledge System unificato
-- 5 slash command Claude Code sostituiscono completamente il pannello Admin wiki
-- `/analizzacodebase`: scansione completa codebase → `Architettura/` con frontmatter YAML e layer diagram
-- `/aggiornacodebase`: aggiornamento incrementale con propagazione inversa dipendenze via `depends_on`
-- `/aggiornawiki`, `/aggiornamanuale`, `/aggiornarilasci`: path aggiornati alla nuova struttura vault
+- 9 slash command Claude Code sostituiscono completamente il pannello Admin wiki
+- `/egm_init` + `/egm_manifest`: annotazioni codedna + mappa architetturale per BIZ2017
+- `/egm_update`: aggiornamento incrementale con propagazione inversa dipendenze via `depends_on`
+- `/egm_session`, `/egm_manual`, `/egm_release`: log sessione, manuale, rilascio
 - Vault strutturato in 4 aree: `Sessioni/`, `Architettura/`, `Manuali/`, `Rilasci/`
 - `~/.claude/wiki-config.json`: configurazione centralizzata percorso wiki, nessun LLM esterno richiesto
 - Rimossi: `wiki-backfill.js`, `wiki-ingest.js`, `wiki-settings.json`, endpoint wiki backend, sezione Wiki EGM da AdminPanel
-- `Manuale d'uso/` nel vault: guida completa installazione e utilizzo per i colleghi
 
 **v7.2.0** (2026-04-19) — Wiki on-demand
 - `/aggiornawiki`: Claude scrive direttamente nella wiki senza LLM esterno
